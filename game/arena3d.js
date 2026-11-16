@@ -1,11 +1,11 @@
 // Арена боя: узкое полотно между скал. Низ — земли нежити (базальт, лава, черепа, духи),
 // верх — земли людей (плитка с мозаиками единорога, грифона, феникса). По бокам драконы, наверху лик древнего бога.
 import * as THREE from 'three';
-import { mergeVertices } from './lib/jsm/utils/BufferGeometryUtils.js';
+import { mergeVertices, mergeGeometries } from './lib/jsm/utils/BufferGeometryUtils.js';
 
 export const FIELD = { x0:90, x1:450 };      // ширина полотна в пикселях симуляции
 
-export function buildArena(scene, K){
+export function buildArena(scene, K, envTex){
   const wx = x => (x - 270) * K, wz = y => (y - 480) * K;
   let seed = 20240;
   const R = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
@@ -18,6 +18,10 @@ export function buildArena(scene, K){
   const ec = document.createElement('canvas'); ec.width = (X1-X0); ec.height = (Y1-Y0);
   const ge = ec.getContext('2d'); ge.translate(-X0,-Y0);
   ge.fillStyle = '#000'; ge.fillRect(X0,Y0,X1-X0,Y1-Y0);
+  // карта рельефа: светлое — выше, тёмное — ниже
+  const bc = document.createElement('canvas'); bc.width = (X1-X0)*S; bc.height = (Y1-Y0)*S;
+  const gb = bc.getContext('2d'); gb.scale(S,S); gb.translate(-X0,-Y0);
+  gb.fillStyle = '#202020'; gb.fillRect(X0,Y0,X1-X0,Y1-Y0);
 
   // Земли людей: плитка
   g.fillStyle = '#5f574a'; g.fillRect(X0,Y0,X1-X0,Y1-Y0);
@@ -28,7 +32,18 @@ export function buildArena(scene, K){
       const v = (R()-.5)*22, w = R() < .08 ? -18 : 0;
       g.fillStyle = `rgb(${186+v+w},${174+v+w},${150+v+w})`;
       g.fillRect(tx+off+1, ty+1, T-2, T-2);
-      if (R() < .05){ g.strokeStyle = 'rgba(60,50,40,.35)'; g.lineWidth = .6; g.beginPath(); g.moveTo(tx+off+3, ty+4+R()*10); g.lineTo(tx+off+T-4, ty+6+R()*10); g.stroke(); }
+      // износ и пятна на камне
+      for (let k=0;k<3;k++){ g.fillStyle = `rgba(${R()<.5?90:230},${R()<.5?80:220},${R()<.5?60:200},.12)`; g.beginPath(); g.arc(tx+off+3+R()*(T-6), ty+3+R()*(T-6), 1+R()*3, 0, 6.28); g.fill(); }
+      const hl = g.createLinearGradient(tx+off, ty, tx+off+T, ty+T); hl.addColorStop(0,'rgba(255,250,235,.22)'); hl.addColorStop(.5,'rgba(255,255,255,0)'); hl.addColorStop(1,'rgba(40,30,20,.28)');
+      g.fillStyle = hl; g.fillRect(tx+off+1, ty+1, T-2, T-2);
+      if (R() < .06){ g.fillStyle = 'rgba(70,96,52,.35)'; g.fillRect(tx+off, ty+T-3, T, 3); }
+      // рельеф плитки: выпуклая середина, скошенные края
+      const bv = 150 + Math.floor((R()-.5)*30);
+      gb.fillStyle = `rgb(${bv-50},${bv-50},${bv-50})`; gb.fillRect(tx+off+1, ty+1, T-2, T-2);
+      gb.fillStyle = `rgb(${bv-20},${bv-20},${bv-20})`; gb.fillRect(tx+off+2, ty+2, T-4, T-4);
+      gb.fillStyle = `rgb(${bv},${bv},${bv})`; gb.fillRect(tx+off+3.5, ty+3.5, T-7, T-7);
+      for (let k=0;k<4;k++){ gb.fillStyle = `rgba(0,0,0,${.1+R()*.15})`; gb.beginPath(); gb.arc(tx+off+3+R()*(T-6), ty+3+R()*(T-6), .6+R()*1.6, 0, 6.28); gb.fill(); }
+      if (R() < .07){ const y1 = ty+4+R()*10, y2 = ty+6+R()*10; [[g,'rgba(50,40,30,.55)',.8],[gb,'#303030',1.1]].forEach(([k,c2,w])=>{ k.strokeStyle = c2; k.lineWidth = w; k.beginPath(); k.moveTo(tx+off+3, y1); k.lineTo(tx+off+T/2, (y1+y2)/2+2); k.lineTo(tx+off+T-4, y2); k.stroke(); }); }
     }
   }
   // кайма вдоль скал
@@ -76,11 +91,9 @@ export function buildArena(scene, K){
     // свечение золота
     ge.strokeStyle = 'rgba(217,180,74,.55)'; ge.lineWidth = 2.5; ge.beginPath(); ge.arc(cx,cy,r-2,0,6.28); ge.stroke();
   }
-  medallion(270, 330, 70, 'unicorn');
-  medallion(170, 455, 40, 'griffin');
-  medallion(370, 455, 40, 'phoenix');
-  medallion(170, 190, 30, 'griffin');
-  medallion(370, 190, 30, 'phoenix');
+  const MEDALS = [[270,330,70,'unicorn'],[170,455,40,'griffin'],[370,455,40,'phoenix'],[170,190,30,'griffin'],[370,190,30,'phoenix']];
+  // тень-углубление под медальонами
+  MEDALS.forEach(([x,y,r])=>{ const rg = g.createRadialGradient(x,y,r*.9,x,y,r*1.25); rg.addColorStop(0,'rgba(20,14,8,.55)'); rg.addColorStop(1,'rgba(20,14,8,0)'); g.fillStyle = rg; g.beginPath(); g.arc(x,y,r*1.25,0,6.28); g.fill(); });
   // золотой рунный круг вокруг замка людей
   const runeRing = (cx, cy, r, col, ctxs) => ctxs.forEach(k=>{
     k.save(); k.strokeStyle = col; k.lineWidth = 2; k.beginPath(); k.arc(cx,cy,r,0,6.28); k.stroke(); k.beginPath(); k.arc(cx,cy,r-12,0,6.28); k.stroke();
@@ -101,17 +114,29 @@ export function buildArena(scene, K){
   g.restore();
   g.save(); undeadClip(g); g.clip();
   g.fillStyle = '#1e191e'; g.fillRect(X0, 400, X1-X0, Y1-400);
+  gb.save(); undeadClip(gb); gb.clip(); gb.fillStyle = '#5a5a5a'; gb.fillRect(X0, 400, X1-X0, Y1-400);
+  for (let i=0;i<900;i++){ const v = Math.floor(60+R()*90); gb.fillStyle = `rgba(${v},${v},${v},.5)`; gb.beginPath(); gb.arc(X0+R()*(X1-X0), 480+R()*(Y1-480), 1+R()*5, 0, 6.28); gb.fill(); }
+  gb.restore();
   for (let i=0;i<360;i++){ const x = X0+R()*(X1-X0), y = 480+R()*(Y1-480), r = 6+R()*28; g.fillStyle = R()<.5 ? 'rgba(52,42,50,.35)' : 'rgba(8,6,8,.35)'; g.beginPath(); g.arc(x,y,r,0,6.28); g.fill(); }
   // базальтовые плиты
   g.strokeStyle = 'rgba(0,0,0,.45)'; g.lineWidth = 1.2;
-  for (let i=0;i<70;i++){ const x = X0+R()*(X1-X0), y = 520+R()*(Y1-520), r = 16+R()*22; g.beginPath(); for (let k=0;k<6;k++){ const a = k/6*6.28 + R()*.3; const px = x+Math.cos(a)*r, py = y+Math.sin(a)*r; k?g.lineTo(px,py):g.moveTo(px,py); } g.closePath(); g.stroke(); }
+  gb.save(); undeadClip(gb); gb.clip();
+  for (let i=0;i<90;i++){
+    const x = X0+R()*(X1-X0), y = 520+R()*(Y1-520), r = 14+R()*20, pts = [];
+    for (let k=0;k<6;k++){ const a = k/6*6.28 + R()*.3; pts.push([x+Math.cos(a)*r, y+Math.sin(a)*r]); }
+    const poly = k => { k.beginPath(); pts.forEach(([px,py],j)=>j?k.lineTo(px,py):k.moveTo(px,py)); k.closePath(); };
+    poly(g); g.stroke();
+    const sh = g.createLinearGradient(x-r, y-r, x+r, y+r); sh.addColorStop(0,'rgba(120,100,120,.16)'); sh.addColorStop(1,'rgba(0,0,0,.25)'); g.fillStyle = sh; poly(g); g.fill();
+    const v = Math.floor(110+R()*50); gb.fillStyle = `rgb(${v},${v},${v})`; poly(gb); gb.fill(); gb.strokeStyle = '#151515'; gb.lineWidth = 2; poly(gb); gb.stroke();
+  }
+  gb.restore();
   g.restore();
   ge.save(); undeadClip(ge); ge.clip();
   // трещины лавы
   const crack = (x, y, len) => {
     const pts = [[x,y]]; let a = R()*6.28;
     for (let i=0;i<len;i++){ a += (R()-.5)*1.1; x += Math.cos(a)*9; y += Math.sin(a)*9; pts.push([x,y]); if (R()<.12) crack(x, y, Math.floor(len*.5)); }
-    [[g,'#5a1606',4.5],[g,'#ff5a14',2],[g,'#ffd27a',.7],[ge,'#ff5a14',3.5],[ge,'#ffcf6a',1.2]].forEach(([k,col,w])=>{
+    [[gb,'#000',5],[g,'#2a0c05',5.5],[g,'#5a1606',4],[g,'#ff5a14',1.8],[g,'#ffd27a',.6],[ge,'#ff5a14',3.2],[ge,'#ffcf6a',1.1]].forEach(([k,col,w])=>{
       k.strokeStyle = col; k.lineWidth = w; k.lineCap = 'round'; k.lineJoin = 'round'; k.beginPath(); pts.forEach(([px,py],j)=>j?k.lineTo(px,py):k.moveTo(px,py)); k.stroke();
     });
   };
@@ -119,22 +144,8 @@ export function buildArena(scene, K){
   for (let i=0;i<26;i++) crack(FIELD.x0+R()*(FIELD.x1-FIELD.x0), 560+R()*440, 6+Math.floor(R()*10));
   // озёра лавы у скал
   [[FIELD.x0+6, 700, 30],[FIELD.x1-6, 640, 26],[FIELD.x0+4, 960, 34],[FIELD.x1-4, 900, 30]].forEach(([x,y,r])=>{
-    [[g,'#3a0d04',1.25],[g,'#ff5a14',1],[g,'#ffb347',.55],[ge,'#ff6a1a',1],[ge,'#ffd27a',.5]].forEach(([k,col,s])=>{ k.fillStyle = col; k.beginPath(); k.ellipse(x, y, r*s, r*s*1.6, 0, 0, 6.28); k.fill(); });
+    [[gb,'#000',1.1],[g,'#2a0c05',1.3],[g,'#3a0d04',1.2],[g,'#ff5a14',1],[g,'#ffb347',.55],[ge,'#ff6a1a',1],[ge,'#ffd27a',.5]].forEach(([k,col,s])=>{ k.fillStyle = col; k.beginPath(); k.ellipse(x, y, r*s, r*s*1.6, 0, 0, 6.28); k.fill(); });
   });
-  // черепа
-  const skull = (x, y, s, glow) => {
-    g.save(); g.translate(x,y); g.scale(s,s);
-    g.fillStyle = '#d9cfb6'; g.strokeStyle = '#3a3128'; g.lineWidth = 1;
-    g.beginPath(); g.arc(0,-2,7,Math.PI*.9,Math.PI*2.1); g.lineTo(5,5); g.lineTo(-5,5); g.closePath(); g.fill(); g.stroke();
-    g.fillRect(-4,5,8,3);
-    g.fillStyle = '#16100c'; g.beginPath(); g.arc(-2.7,0,2,0,6.28); g.arc(2.7,0,2,0,6.28); g.fill();
-    g.beginPath(); g.moveTo(0,2); g.lineTo(-1,4); g.lineTo(1,4); g.fill();
-    g.restore();
-    if (glow){ ge.fillStyle = '#8be36b'; ge.beginPath(); ge.arc(x-2.7*s,y,1.8*s,0,6.28); ge.arc(x+2.7*s,y,1.8*s,0,6.28); ge.fill(); }
-  };
-  for (let i=0;i<26;i++){ const x = FIELD.x0+8+R()*(FIELD.x1-FIELD.x0-16), y = 575+R()*430; skull(x, y, .55+R()*.5, R()<.35); }
-  // кучки черепов у скал
-  [[FIELD.x0+14, 800],[FIELD.x1-14, 760],[FIELD.x0+16, 600]].forEach(([x,y])=>{ for (let i=0;i<7;i++) skull(x+(R()-.5)*22, y+(R()-.5)*26, .7+R()*.4, R()<.4); });
   g.restore();
   ge.restore();
   // зелёный рунный круг у замка нежити
@@ -146,7 +157,8 @@ export function buildArena(scene, K){
 
   const map = new THREE.CanvasTexture(c); map.colorSpace = THREE.SRGBColorSpace; map.anisotropy = 8;
   const emap = new THREE.CanvasTexture(ec); emap.colorSpace = THREE.SRGBColorSpace;
-  const groundMat = new THREE.MeshStandardMaterial({ map, emissiveMap:emap, emissive:0xffffff, emissiveIntensity:1.3, roughness:.92 });
+  const bump = new THREE.CanvasTexture(bc); bump.anisotropy = 8;
+  const groundMat = new THREE.MeshStandardMaterial({ map, emissiveMap:emap, emissive:0xffffff, emissiveIntensity:1.3, roughness:.88, bumpMap:bump, bumpScale:2.2 });
   const ground = new THREE.Mesh(new THREE.PlaneGeometry((X1-X0)*K, (Y1-Y0)*K), groundMat);
   ground.rotation.x = -Math.PI/2; ground.position.set(wx((X0+X1)/2), 0, wz((Y0+Y1)/2));
   ground.receiveShadow = true; scene.add(ground);
@@ -342,7 +354,7 @@ export function buildArena(scene, K){
   }
 
   // ---------------- Духи над землями нежити ----------------
-  const ghostMat = new THREE.SpriteMaterial({ map:puffTex, color:0xb8ffc8, transparent:true, opacity:.55, blending:THREE.AdditiveBlending, depthWrite:false });
+  const ghostMat = new THREE.SpriteMaterial({ map:puffTex, color:0x9fe8b0, transparent:true, opacity:.35, blending:THREE.AdditiveBlending, depthWrite:false });
   for (let i=0;i<11;i++){
     const sp = new THREE.Sprite(ghostMat.clone()); scene.add(sp);
     const tail = new THREE.Sprite(ghostMat.clone()); tail.material.opacity = .25; scene.add(tail);
@@ -352,7 +364,7 @@ export function buildArena(scene, K){
       const x = ox + Math.cos(a)*rad, z = oz + Math.sin(a*1.3)*rad*.6, y = 1.6 + .5*Math.sin(t*1.7+ph);
       sp.position.set(x, y, z); sp.scale.set(.55, .8, .55);
       tail.position.set(x - Math.cos(a+.6)*.35, y - .2, z - Math.sin(a*1.3+.6)*.25); tail.scale.setScalar(.45);
-      sp.material.opacity = .4 + .25*Math.sin(t*3+ph);
+      sp.material.opacity = .22 + .14*Math.sin(t*3+ph);
     });
   }
 
@@ -374,5 +386,125 @@ export function buildArena(scene, K){
   particles(140, 0xff7a2a, .22, { x0:-edgeX-1.5, x1:edgeX+1.5, z0:2.5, z1:18, h:4.5 }, .9);
   particles(60, 0xffe6a0, .16, { x0:-edgeX, x1:edgeX, z0:-18, z1:0, h:3.5 }, .25);
 
-  return { update(t, dt){ for (const u of updaters) u(t, dt); } };
+  // ---------------- 3D-медальоны с рельефными существами ----------------
+  const goldM = new THREE.MeshStandardMaterial({ color:0xe0b54a, metalness:1, roughness:.28 });
+  const ivoryM = new THREE.MeshStandardMaterial({ color:0xf1e8d2, metalness:0, roughness:.35 });
+  const lapisM = new THREE.MeshStandardMaterial({ color:0x1d3464, metalness:.25, roughness:.4 });
+  const stoneM = new THREE.MeshStandardMaterial({ color:0xcbbd9c, roughness:.7 });
+  const redM = new THREE.MeshStandardMaterial({ color:0xc53a2a, metalness:.35, roughness:.35 });
+  const orangeM = new THREE.MeshStandardMaterial({ color:0xf08a2c, metalness:.4, roughness:.3, emissive:0x5a2000 });
+  [goldM, ivoryM, lapisM, redM, orangeM].forEach(m=>{ m.envMap = envTex; m.envMapIntensity = 1.2; });
+  const gemM = [0x3fd0ff, 0xe5554b, 0x8be36b].map(c=>new THREE.MeshStandardMaterial({ color:c, metalness:.2, roughness:.1, emissive:c, emissiveIntensity:.35 }));
+  // контуры в координатах ±50, y вверх
+  const shp = (cmds) => { const s2 = new THREE.Shape(); cmds(s2); return s2; };
+  const SH = {
+    unicorn:{
+      body: shp(s=>{ s.moveTo(24,4); s.bezierCurveTo(26,-4,24,-10,22,-14); s.lineTo(24,-34); s.lineTo(23,-46); s.lineTo(17,-46); s.lineTo(17,-36); s.lineTo(15,-16);
+        s.bezierCurveTo(8,-18,-10,-18,-18,-15); s.lineTo(-20,-30); s.lineTo(-18,-46); s.lineTo(-24,-46); s.lineTo(-27,-30);
+        s.bezierCurveTo(-30,-22,-34,-14,-36,-6); s.bezierCurveTo(-38,4,-34,12,-26,13); s.bezierCurveTo(-14,14,4,14,12,16);
+        s.bezierCurveTo(18,24,24,34,28,42); s.lineTo(32,46); s.lineTo(33,40); s.bezierCurveTo(40,36,46,30,48,24); s.bezierCurveTo(48,20,44,18,40,19);
+        s.bezierCurveTo(34,20,30,16,28,10); s.bezierCurveTo(27,8,26,6,24,4); }),
+      mane: shp(s=>{ s.moveTo(10,17); s.bezierCurveTo(14,30,20,40,30,45); s.bezierCurveTo(26,36,24,30,22,24); s.bezierCurveTo(20,28,16,24,18,16); s.closePath(); }),
+      tail: shp(s=>{ s.moveTo(-34,10); s.bezierCurveTo(-50,8,-56,-14,-46,-28); s.bezierCurveTo(-49,-14,-45,0,-32,4); s.closePath(); }),
+      horn:[36,42, 50,62]
+    },
+    griffin:{
+      body: shp(s=>{ s.moveTo(20,0); s.bezierCurveTo(20,-10,14,-14,10,-14); s.lineTo(12,-34); s.lineTo(6,-34); s.lineTo(4,-16); s.bezierCurveTo(-6,-18,-16,-16,-22,-14);
+        s.lineTo(-22,-34); s.lineTo(-28,-34); s.lineTo(-30,-12); s.bezierCurveTo(-36,-6,-36,4,-30,8); s.bezierCurveTo(-20,10,0,10,12,12);
+        s.bezierCurveTo(16,18,22,24,28,24); s.bezierCurveTo(34,24,40,20,42,16); s.lineTo(48,12); s.lineTo(40,10); s.bezierCurveTo(36,6,28,4,20,0); }),
+      wing: shp(s=>{ s.moveTo(4,10); s.bezierCurveTo(-4,30,-20,46,-42,50); s.lineTo(-32,42); s.lineTo(-40,38); s.lineTo(-28,34); s.lineTo(-36,28); s.lineTo(-24,24); s.lineTo(-28,18); s.lineTo(-14,14); s.closePath(); }),
+      tail: shp(s=>{ s.moveTo(-32,2); s.bezierCurveTo(-44,6,-46,-10,-40,-14); s.bezierCurveTo(-44,-6,-40,0,-32,-2); s.closePath(); })
+    },
+    phoenix:{
+      wingR: shp(s=>{ s.moveTo(4,4); s.bezierCurveTo(16,14,30,30,46,46); s.lineTo(40,32); s.lineTo(50,30); s.lineTo(40,20); s.lineTo(48,14); s.lineTo(34,8); s.lineTo(40,0); s.bezierCurveTo(26,-2,14,-2,6,-4); s.closePath(); }),
+      body: shp(s=>{ s.absellipse(0,0,7,15,0,Math.PI*2); }),
+      head: shp(s=>{ s.absarc(0,19,6,0,Math.PI*2); }),
+      tail: shp(s=>{ s.moveTo(-4,-10); s.bezierCurveTo(-12,-26,-16,-36,-8,-48); s.bezierCurveTo(-6,-36,-2,-26,0,-16); s.bezierCurveTo(2,-26,6,-36,8,-48); s.bezierCurveTo(16,-36,12,-26,4,-10); s.closePath(); })
+    }
+  };
+  const ext = (shape, depth, mat) => {
+    const geo = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled:true, bevelThickness:1.6, bevelSize:1.1, bevelSegments:3, curveSegments:14 });
+    const m = new THREE.Mesh(geo, mat); m.castShadow = true; m.receiveShadow = true; return m;
+  };
+  function medal(cx, cy, r, beast){
+    const R0 = r*K, grp = new THREE.Group();
+    const base = new THREE.Mesh(new THREE.CylinderGeometry(R0*1.02, R0*1.08, .08, 64), stoneM); base.position.y = .04; base.receiveShadow = true; grp.add(base);
+    const lap = new THREE.Mesh(new THREE.CylinderGeometry(R0*.86, R0*.86, .02, 64), lapisM); lap.position.y = .085; lap.receiveShadow = true; grp.add(lap);
+    [[.93,.045],[.82,.02]].forEach(([k,t])=>{ const tor = new THREE.Mesh(new THREE.TorusGeometry(R0*k, R0*t, 10, 72), goldM); tor.rotation.x = -Math.PI/2; tor.position.y = .09; tor.castShadow = true; grp.add(tor); });
+    const n = r > 50 ? 24 : 16;
+    for (let i=0;i<n;i++){ const a = i/n*6.28; const gm = new THREE.Mesh(new THREE.SphereGeometry(R0*.035, 10, 8), i%2 ? goldM : gemM[i%3]); gm.position.set(Math.cos(a)*R0*.93, .11, Math.sin(a)*R0*.93); grp.add(gm); }
+    // существо: лежит на лазурите, голова к дальнему краю
+    const rel = new THREE.Group(); const sc = R0*1.45/100;
+    rel.scale.set(sc, sc, sc*.9); rel.rotation.x = -Math.PI/2; rel.position.y = .095;
+    const S2 = SH[beast];
+    if (beast==='unicorn'){
+      rel.add(ext(S2.body, 2.6, ivoryM)); const mn = ext(S2.mane, 3.2, goldM); rel.add(mn); const tl = ext(S2.tail, 3, goldM); rel.add(tl);
+      const [hx,hy,tx,ty] = S2.horn; const len = Math.hypot(tx-hx, ty-hy);
+      const horn = new THREE.Mesh(new THREE.ConeGeometry(2.2, len, 12, 6), goldM); horn.position.set((hx+tx)/2, (hy+ty)/2, 3); horn.rotation.z = Math.atan2(ty-hy, tx-hx) - Math.PI/2; rel.add(horn);
+      const eye = new THREE.Mesh(new THREE.SphereGeometry(1.4, 8, 6), lapisM); eye.position.set(38, 30, 4.2); rel.add(eye);
+    } else if (beast==='griffin'){
+      rel.add(ext(S2.body, 2.6, goldM)); const w = ext(S2.wing, 3.4, ivoryM); w.position.z = .5; rel.add(w); rel.add(ext(S2.tail, 2.4, goldM));
+      const eye = new THREE.Mesh(new THREE.SphereGeometry(1.5, 8, 6), redM); eye.position.set(32, 18, 4.2); rel.add(eye);
+    } else {
+      const wr = ext(S2.wingR, 2.4, goldM); rel.add(wr);
+      const wl = ext(S2.wingR, 2.4, goldM); wl.scale.x = -1; rel.add(wl);
+      rel.add(ext(S2.body, 3, redM)); rel.add(ext(S2.head, 3, redM)); rel.add(ext(S2.tail, 2, orangeM));
+    }
+    grp.add(rel);
+    grp.position.set(wx(cx), 0, wz(cy));
+    scene.add(grp);
+  }
+  MEDALS.forEach(([x,y,r,b])=>medal(x,y,r,b));
+
+  // светящиеся кольца рун у замков
+  [[270,100,78,0xd9b44a],[270,860,80,0x8be36b]].forEach(([x,y,r,c2])=>{
+    const m = new THREE.MeshBasicMaterial({ color:c2, transparent:true, opacity:.7, depthWrite:false });
+    const tor = new THREE.Mesh(new THREE.TorusGeometry(r*K, .03, 6, 96), m); tor.rotation.x = -Math.PI/2; tor.position.set(wx(x), .04, wz(y)); scene.add(tor);
+    updaters.push(t=>{ m.opacity = .45 + .3*Math.sin(t*2 + x); });
+  });
+
+  // ---------------- 3D-черепа (из модели скелета) ----------------
+  const deint = geo => {
+    const out = new THREE.BufferGeometry();
+    for (const name of ['position','normal','uv']){
+      const at = geo.getAttribute(name); if (!at) continue;
+      const n = at.itemSize, arr = new Float32Array(at.count*n), get = ['getX','getY','getZ','getW'];
+      for (let i=0;i<at.count;i++) for (let k=0;k<n;k++) arr[i*n+k] = at[get[k]](i);
+      out.setAttribute(name, new THREE.BufferAttribute(arr, n));
+    }
+    if (geo.index) out.setIndex(Array.from(geo.index.array));
+    return out;
+  };
+  function addModels(T){
+    const src = T['sk_minion']?.scene; if (!src) return;
+    const parts = [];
+    let mat = null, eyeGeo = null;
+    src.traverse(o=>{
+      if (!o.isMesh) return;
+      if (o.name.includes('Head') || o.name.includes('Jaw')){ parts.push(deint(o.geometry)); mat = o.material; }
+      if (o.name.includes('Eyes')){ eyeGeo = deint(o.geometry); eyeGeo.deleteAttribute('uv'); }
+    });
+    if (!parts.length) return;
+    const geo = mergeGeometries(parts); geo.translate(0, -1.62, 0);
+    if (eyeGeo) eyeGeo.translate(0, -1.62, 0);
+    const skMat = mat.clone(); skMat.color = new THREE.Color(0xd8cdb4);
+    const eyeMat = new THREE.MeshBasicMaterial({ color:0x8be36b });
+    const spots = [];
+    for (let i=0;i<22;i++) spots.push([FIELD.x0+14+R()*(FIELD.x1-FIELD.x0-28), 590+R()*400, .45+R()*.2]);
+    [[FIELD.x0+16, 800],[FIELD.x1-16, 760],[FIELD.x0+18, 610],[FIELD.x1-18, 930]].forEach(([x,y])=>{ for (let i=0;i<6;i++) spots.push([x+(R()-.5)*30, y+(R()-.5)*34, .5+R()*.2]); });
+    const inst = new THREE.InstancedMesh(geo, skMat, spots.length);
+    const glow = eyeGeo ? new THREE.InstancedMesh(eyeGeo, eyeMat, spots.length) : null;
+    const M = new THREE.Matrix4(), Q = new THREE.Quaternion(), E = new THREE.Euler(), P = new THREE.Vector3(), Sc = new THREE.Vector3();
+    let ng = 0;
+    spots.forEach(([x,y,s2], i)=>{
+      E.set((R()-.5)*.6, R()*6.28, (R()-.5)*.9); Q.setFromEuler(E);
+      P.set(wx(x), .1*s2/.3 - .04, wz(y)); Sc.setScalar(s2);
+      M.compose(P, Q, Sc); inst.setMatrixAt(i, M);
+      if (glow && R() < .35) glow.setMatrixAt(ng++, M);
+    });
+    inst.castShadow = true; inst.receiveShadow = true; scene.add(inst);
+    if (glow){ glow.count = ng; scene.add(glow); updaters.push(t=>{ eyeMat.color.setHSL(.28, .8, .45 + .15*Math.sin(t*2.5)); }); }
+  }
+
+  return { update(t, dt){ for (const u of updaters) u(t, dt); }, addModels };
 }

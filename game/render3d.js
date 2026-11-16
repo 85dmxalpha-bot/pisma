@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from './lib/jsm/loaders/GLTFLoader.js';
 import * as SkeletonUtils from './lib/jsm/utils/SkeletonUtils.js';
 import { buildArena } from './arena3d.js';
+import { RoomEnvironment } from './lib/jsm/environments/RoomEnvironment.js';
 
 const K = 1/30;                       // 1 пиксель симуляции = 1/30 единицы сцены
 const wx = x => (x - 270) * K;
@@ -30,6 +31,7 @@ export async function createRenderer(canvas, onProgress){
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
   const scene = new THREE.Scene();
+  const envTex = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(renderer), .04).texture;
   scene.background = new THREE.Color(0x140f1a);
   scene.fog = new THREE.Fog(0x140f1a, 42, 80);
 
@@ -37,7 +39,7 @@ export async function createRenderer(canvas, onProgress){
   const CAM_POS = new THREE.Vector3(0, 47, 21), CAM_LOOK = new THREE.Vector3(0, 0, 1.6);
   camera.position.copy(CAM_POS); camera.lookAt(CAM_LOOK);
 
-  scene.add(new THREE.HemisphereLight(0xd8d0ff, 0x3b2a22, 1.0));
+  scene.add(new THREE.HemisphereLight(0xd8d0ff, 0x3b2a22, .95));
   const sun = new THREE.DirectionalLight(0xfff0d8, 2.4);
   sun.position.set(-9, 22, 10); sun.target.position.set(0,0,0);
   sun.castShadow = true;
@@ -46,7 +48,7 @@ export async function createRenderer(canvas, onProgress){
   sun.shadow.bias = -0.0008; sun.shadow.normalBias = 0.02;
   scene.add(sun, sun.target);
 
-  const arena = buildArena(scene, K);
+  const arena = buildArena(scene, K, envTex);
 
   // ---------- Загрузка моделей ----------
   const loader = new GLTFLoader();
@@ -61,6 +63,7 @@ export async function createRenderer(canvas, onProgress){
     g.scene.traverse(o=>{ if (o.isMesh){ o.castShadow = true; o.receiveShadow = true; } });
     T[f] = g; done++; onProgress && onProgress(done/files.length);
   })));
+  arena.addModels(T);
   const size = obj => new THREE.Box3().setFromObject(obj).getSize(new THREE.Vector3());
   const charH = {}; for (const n of ['warrior','mage','rogue','minion']) charH[n] = 2.45; // рост модели в позе
   const place = (name, px, x, y, rot) => {
