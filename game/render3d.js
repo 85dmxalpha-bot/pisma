@@ -16,11 +16,12 @@ const CH = {
   skeleton:{ model:'warrior', h:1.45, r:'blade', l:'shield_small_a', walk:'Walking_D_Skeletons', idle:'Idle_Combat', atk:'1H_Melee_Attack_Chop', ring:.4 },
   necro:   { static:'u_scarecrow', h:1.8, ring:.45, hover:true },
   frost:   { static:'u_mantis', h:1.75, ring:.45, hover:true },
+  wraith:  { static:'u_wraith', h:1.7, ring:.42, hover:true, lift:.55, noOrb:true },
   boss:    { model:'warrior', h:2.6,  r:'axe', l:'shield_large_a', walk:'Walking_D_Skeletons', idle:'Idle_Combat', atk:'2H_Melee_Attack_Chop', ring:.72 },
   worker:  { model:'minion',  h:1.1,  r:'axe', walk:'Walking_A', idle:'Idle', atk:'1H_Melee_Attack_Chop', ring:.3 }
 };
 // Здания: модель и ширина в пикселях симуляции
-const BLD = { castle:['castle',104], tower:['tower_a',46], crypt:['barracks',62], frosttower:['tower_b',46], necrotower:['church',58], lair:['blacksmith',66], mine:['mine',62] };
+const BLD = { haunt:['church',52,[.45,.4,.6]], castle:['castle',104], tower:['tower_a',46], crypt:['barracks',62], frosttower:['tower_b',46], necrotower:['church',58], lair:['blacksmith',66], mine:['mine',62] };
 const COLOR = ['green','red'];
 
 export async function createRenderer(canvas, onProgress){
@@ -38,7 +39,7 @@ export async function createRenderer(canvas, onProgress){
   scene.fog = new THREE.Fog(0x140f1a, 42, 80);
 
   const camera = new THREE.PerspectiveCamera(30, 540/960, 1, 150);
-  const CAM_POS = new THREE.Vector3(0, 47, 21), CAM_LOOK = new THREE.Vector3(0, 0, 1.6);
+  const CAM_POS = new THREE.Vector3(0, 50, 22.5), CAM_LOOK = new THREE.Vector3(0, 0, 2.3);
   camera.position.copy(CAM_POS); camera.lookAt(CAM_LOOK);
 
   scene.add(new THREE.HemisphereLight(0xd8d0ff, 0x3b2a22, .95));
@@ -57,7 +58,7 @@ export async function createRenderer(canvas, onProgress){
   const files = [
     ...['warrior','mage','rogue','minion'].map(n=>'sk_'+n),
     ...['blade','shield_small_a','staff','axe','shield_large_a'].map(n=>'w_'+n),
-    'u_scarecrow', 'u_mantis',
+    'u_scarecrow', 'u_mantis', 'u_wraith',
     ...COLOR.flatMap(c=>['castle','tower_a','church','tower_b','barracks','mine','blacksmith'].map(b=>`b_${b}_${c}`)),
     ...['rock_single_a','rock_single_c','rock_single_e'].map(n=>'n_'+n)
   ];
@@ -138,7 +139,7 @@ export async function createRenderer(canvas, onProgress){
     const ring = new THREE.Mesh(ringGeo, ringMats[e.side]); ring.rotation.x = -Math.PI/2; ring.position.y = .03; ring.scale.setScalar(d.ring); g.add(ring);
     const ice = new THREE.Mesh(iceGeo, iceMat); ice.scale.set(d.ring*1.4, d.h*.95, d.ring*1.4); ice.position.y = d.h*.5; ice.visible = false; g.add(ice);
     const orb = new THREE.Mesh(new THREE.SphereGeometry(.09, 10, 8), new THREE.MeshBasicMaterial({ color: e.kind==='frost' ? 0x9fe3ff : SIDE[e.side].main }));
-    orb.position.set(-d.h*.33, d.h*.95, .05); body.add(orb);
+    orb.position.set(-d.h*.33, d.h*.95, .05); if (!d.noOrb) body.add(orb);
     g.position.set(wx(e.x), 0, wz(e.y)); scene.add(g);
     const v = { kind:'unit', isStatic:true, e, g, body, orb, d, ice, lastAtk:e.atkAt, atkK:0, yaw: e.side===0 ? Math.PI : 0, px:e.x, py:e.y, born:performance.now()/1000, dieT:-1, ph:Math.random()*6, mixer:null };
     g.rotation.y = v.yaw; views.add(v); e.v = v; return v;
@@ -169,7 +170,7 @@ export async function createRenderer(canvas, onProgress){
     const lean = (e.moving ? .14 : 0) + v.atkK*.35;
     v.body.rotation.x += (lean - v.body.rotation.x) * Math.min(1, dt*8);
     v.body.rotation.z = .05*Math.sin(v.ph*1.7);
-    v.body.position.y = .18 + .08*Math.sin(v.ph*3);
+    v.body.position.y = (d.lift || .18) + .08*Math.sin(v.ph*3);
     v.orb.scale.setScalar(1 + v.atkK*1.6 + .15*Math.sin(v.ph*6));
   }
   function play(v, name, once, speed){
@@ -262,9 +263,10 @@ export async function createRenderer(canvas, onProgress){
   function removeStruct(v){ scene.remove(v.g); if (v.rubble) scene.remove(v.rubble); views.delete(v); }
 
   function makeBuildingView(S, b){
-    const [m, px] = BLD[b.key];
+    const [m, px, tint] = BLD[b.key];
     const name = `b_${m}_${COLOR[S.id]}`;
     const o = T[name].scene.clone(true);
+    if (tint) o.traverse(x=>{ if (x.isMesh){ x.material = x.material.clone(); x.material.color.setRGB(x.material.color.r*tint[0], x.material.color.g*tint[1], x.material.color.b*tint[2]); x.material.emissive = new THREE.Color(0x1a0a2a); } });
     o.scale.setScalar((px*K)/size(T[name].scene).x);
     o.position.set(wx(b.x), 0, wz(b.y));
     o.rotation.y = S.id===0 ? 0 : Math.PI;
