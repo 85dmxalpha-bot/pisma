@@ -229,7 +229,7 @@ const SPELLS = {
 // Позиции для игрока (низ). Враг — зеркально через центр.
 const GEO = {
   castle:{x:270,y:860}, towers:[{x:128,y:720},{x:412,y:720}], mine:{x:420,y:845}, door:{x:300,y:845},
-  slots:{ crypt:{x:96,y:852}, frosttower:{x:182,y:770}, lair:{x:356,y:772}, necrotower:{x:180,y:925} }
+  slots:{ crypt:{x:118,y:862}, frosttower:{x:182,y:770}, lair:{x:356,y:772}, necrotower:{x:180,y:925} }
 };
 // Центральная дорога: по ней армии идут навстречу друг другу
 function laneX(y){ const t = clamp((y-90)/780,0,1), u = 1-t; return u*u*u*270 + 3*u*u*t*240 + 3*u*t*t*300 + t*t*t*270; }
@@ -716,7 +716,7 @@ function separate(){
       const dx = a.x-s.x, dy = a.y-s.y, d = Math.hypot(dx,dy), m = a.r + s.r - 4;
       if (d < m && d > .01){ a.x = s.x + dx/d*m; a.y = s.y + dy/d*m; }
     }
-    a.x = clamp(a.x, 34, WW-34); a.y = clamp(a.y, 22, WH-22);
+    a.x = clamp(a.x, 100, WW-100); a.y = clamp(a.y, 22, WH-22);
   }
 }
 function updProjs(dt){

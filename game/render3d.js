@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from './lib/jsm/loaders/GLTFLoader.js';
 import * as SkeletonUtils from './lib/jsm/utils/SkeletonUtils.js';
+import { buildArena } from './arena3d.js';
 
 const K = 1/30;                       // 1 пиксель симуляции = 1/30 единицы сцены
 const wx = x => (x - 270) * K;
@@ -29,14 +30,14 @@ export async function createRenderer(canvas, onProgress){
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x0d3440);
-  scene.fog = new THREE.Fog(0x0d3440, 40, 75);
+  scene.background = new THREE.Color(0x140f1a);
+  scene.fog = new THREE.Fog(0x140f1a, 42, 80);
 
   const camera = new THREE.PerspectiveCamera(30, 540/960, 1, 150);
   const CAM_POS = new THREE.Vector3(0, 47, 21), CAM_LOOK = new THREE.Vector3(0, 0, 1.6);
   camera.position.copy(CAM_POS); camera.lookAt(CAM_LOOK);
 
-  scene.add(new THREE.HemisphereLight(0xcfe3ff, 0x3b3222, 1.25));
+  scene.add(new THREE.HemisphereLight(0xd8d0ff, 0x3b2a22, 1.0));
   const sun = new THREE.DirectionalLight(0xfff0d8, 2.4);
   sun.position.set(-9, 22, 10); sun.target.position.set(0,0,0);
   sun.castShadow = true;
@@ -45,46 +46,7 @@ export async function createRenderer(canvas, onProgress){
   sun.shadow.bias = -0.0008; sun.shadow.normalBias = 0.02;
   scene.add(sun, sun.target);
 
-  // ---------- Остров ----------
-  const tex = (()=>{
-    const c = document.createElement('canvas'); c.width = 1024; c.height = 1820;
-    const g = c.getContext('2d'); g.scale(1024/540, 1820/960);
-    paintGround(g, false);
-    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
-    return t;
-  })();
-  const fan = (pts, y, uv) => {
-    const n = pts.length, pos = [0,y,0], uvs = [.5,.5], idx = [];
-    const cx = 270, cy = 480;
-    pos[0] = wx(cx); pos[2] = wz(cy);
-    for (const [x,yy] of pts){ pos.push(wx(x), y, wz(yy)); uvs.push(x/540, 1-yy/960); }
-    for (let i=0;i<n;i++) idx.push(0, 1+((i+1)%n), 1+i);
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos,3));
-    if (uv) geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs,2));
-    geo.setIndex(idx); geo.computeVertexNormals();
-    return geo;
-  };
-  const top = new THREE.Mesh(fan(islandPts(0), 0, true), new THREE.MeshStandardMaterial({ map:tex, roughness:1 }));
-  top.receiveShadow = true; scene.add(top);
-  // скалы по краю
-  {
-    const a = islandPts(0), b = islandPts(9), pos = [], idx = [];
-    const n = a.length;
-    a.forEach(([x,y],i)=>{ pos.push(wx(x),0,wz(y)); pos.push(wx(b[i][0]),-1.4,wz(b[i][1])); });
-    for (let i=0;i<n;i++){ const j=(i+1)%n; idx.push(i*2, j*2, i*2+1, j*2, j*2+1, i*2+1); }
-    const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.Float32BufferAttribute(pos,3)); g.setIndex(idx); g.computeVertexNormals();
-    const m = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ color:0x8a7348, roughness:1, side:THREE.DoubleSide }));
-    m.receiveShadow = true; scene.add(m);
-  }
-  const water = new THREE.Mesh(new THREE.PlaneGeometry(160,160), new THREE.MeshStandardMaterial({ color:0x1a5a68, roughness:.35, metalness:.1 }));
-  water.rotation.x = -Math.PI/2; water.position.y = -.55; water.receiveShadow = true; scene.add(water);
-  const shallow = new THREE.Mesh(fan(islandPts(46), -.5, false), new THREE.MeshBasicMaterial({ color:0x3aa3a3, transparent:true, opacity:.35, depthWrite:false }));
-  scene.add(shallow);
-  const foamMat = new THREE.LineBasicMaterial({ color:0xe8fbff, transparent:true, opacity:.45 });
-  const foam = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(islandPts(12).map(([x,y])=>new THREE.Vector3(wx(x),-.46,wz(y)))), foamMat);
-  scene.add(foam);
+  const arena = buildArena(scene, K);
 
   // ---------- Загрузка моделей ----------
   const loader = new GLTFLoader();
@@ -92,7 +54,7 @@ export async function createRenderer(canvas, onProgress){
     ...['warrior','mage','rogue','minion'].map(n=>'sk_'+n),
     ...['blade','shield_small_a','staff','axe','shield_large_a'].map(n=>'w_'+n),
     ...COLOR.flatMap(c=>['castle','tower_a','church','tower_b','barracks','mine','blacksmith'].map(b=>`b_${b}_${c}`)),
-    ...['tree_single_a','tree_single_b','rock_single_a','rock_single_c','rock_single_e','mountain_a_grass_trees','mountain_b','hills_a_trees'].map(n=>'n_'+n)
+    ...['rock_single_a','rock_single_c','rock_single_e'].map(n=>'n_'+n)
   ];
   const T = {}; let done = 0;
   await Promise.all(files.map(f => loader.loadAsync(`./assets/${f}${window.ASSET_EXT || '.glb'}`).then(g=>{
@@ -108,15 +70,6 @@ export async function createRenderer(canvas, onProgress){
     scene.add(o); return o;
   };
 
-  // декор
-  const R = (()=>{ let a = 777; return ()=>{ a=(a*16807)%2147483647; return a/2147483647; }; })();
-  for (const d of decorSpots()){
-    if (d.kind==='tree') place(d.r<.5?'n_tree_single_a':'n_tree_single_b', 20+d.r*12, d.x, d.y, R()*6.28);
-    else if (d.kind==='rock') place(['n_rock_single_a','n_rock_single_c','n_rock_single_e'][Math.floor(d.r*3)], 16+d.r*12, d.x, d.y, R()*6.28);
-  }
-  [[-14,-6,'n_mountain_a_grass_trees',150,.6],[14.5,8,'n_mountain_b',140,2],[-14.5,13,'n_hills_a_trees',150,1],[13.5,-14,'n_hills_a_trees',140,3]].forEach(([x,z,n,px,r])=>{
-    const o = place(n, px, 270 + x/K, 480 + z/K, r); o.position.y = -.6;
-  });
   // шахты
   [0,1].forEach(s=>{ const m = geo(s,GEO.mine); place(`b_mine_${COLOR[s]}`, BLD.mine[1], m.x, m.y, s? Math.PI : 0); });
 
@@ -339,8 +292,7 @@ export async function createRenderer(canvas, onProgress){
   function render(G, dt){
     const now = performance.now()/1000;
     const simDt = G ? (G.paused ? 0 : dt * (G.over ? 1 : G.speed)) : dt;
-    foamMat.opacity = .3 + .2*Math.sin(now*1.6);
-    foam.scale.setScalar(1 + .006*Math.sin(now*1.6));
+    arena.update(now, dt);
     const seen = new Set();
     if (G){
       for (const e of G.ents){
