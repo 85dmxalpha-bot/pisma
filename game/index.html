@@ -29,7 +29,8 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 #lvlLabel{flex:1;font-size:14px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #timer{font-family:var(--f-display);font-weight:800;font-size:22px;letter-spacing:1px;font-variant-numeric:tabular-nums;min-width:74px;text-align:center}
 #timer.final{color:var(--blood);font-size:16px}
-#cv{position:absolute;left:0;top:44px;width:540px;height:960px;display:block}
+#gl,#cv{position:absolute;left:0;top:44px;width:540px;height:960px;display:block}
+#loading{position:absolute;left:0;right:0;bottom:30px;text-align:center;color:var(--muted);font-size:14px}
 
 #bottombar{position:absolute;left:0;top:1004px;width:540px;height:100px;box-sizing:border-box;padding:8px 10px;display:flex;gap:10px;align-items:stretch;
   background:var(--panel);border-top:1px solid var(--line);z-index:5}
@@ -129,6 +130,7 @@ h2{font-family:var(--f-display);font-weight:800;font-size:30px;margin:0;text-ali
     <div id="timer">5:00</div>
     <button class="icon-btn" id="btnSpeed" aria-label="Скорость">x1</button>
   </div>
+  <canvas id="gl"></canvas>
   <canvas id="cv"></canvas>
   <div id="toast" hidden></div>
   <div id="aimHint" hidden></div>
@@ -151,6 +153,7 @@ h2{font-family:var(--f-display);font-weight:800;font-size:30px;margin:0;text-ali
     <div style="height:30px"></div>
     <button class="btn" id="btnCampaign">Кампания</button>
     <button class="btn alt" disabled>PvP · скоро</button>
+    <div id="loading">Загрузка 3D…</div>
   </div>
 
   <div class="screen" id="scrRace" hidden>
@@ -208,12 +211,14 @@ const SIDE = [
 
 const UNIT = {
   skeleton:{ name:'Скелет',        hp:70,  dmg:9,  cd:1.0, range:6,   speed:42, r:9,  aggro:110 },
-  mage:    { name:'Маг',           hp:45,  dmg:15, cd:1.6, range:120, speed:36, r:9,  aggro:145, ranged:true },
+  necro:   { name:'Некромант',     hp:60,  dmg:6,  cd:1.6, range:110, speed:32, r:9,  aggro:140, ranged:true, summon:{every:7,n:3,max:6} },
+  frost:   { name:'Маг холода',    hp:45,  dmg:12, cd:1.5, range:120, speed:36, r:9,  aggro:145, ranged:true, frost:true },
   boss:    { name:'Рыцарь смерти', hp:650, dmg:38, cd:1.4, range:8,   speed:30, r:17, aggro:120, splash:30 }
 };
 const BUILD = {
   crypt:    { name:'Склеп',        unit:'skeleton', interval:5,  cap:3, maxCap:6 },
-  magetower:{ name:'Башня магов',  unit:'mage',     interval:5,  cap:2, maxCap:4 },
+  frosttower:{ name:'Башня холода', unit:'frost',    interval:5,  cap:2, maxCap:4 },
+  necrotower:{ name:'Башня некромантов', unit:'necro', interval:5, cap:1, maxCap:2 },
   lair:     { name:'Логово',       unit:'boss',     interval:45, cap:1, maxCap:1 }
 };
 const SPELLS = {
@@ -224,7 +229,7 @@ const SPELLS = {
 // Позиции для игрока (низ). Враг — зеркально через центр.
 const GEO = {
   castle:{x:270,y:860}, towers:[{x:128,y:720},{x:412,y:720}], mine:{x:420,y:845}, door:{x:300,y:845},
-  slots:{ crypt:{x:96,y:852}, magetower:{x:182,y:770}, lair:{x:356,y:772} }
+  slots:{ crypt:{x:96,y:852}, frosttower:{x:182,y:770}, lair:{x:356,y:772}, necrotower:{x:180,y:925} }
 };
 // Центральная дорога: по ней армии идут навстречу друг другу
 function laneX(y){ const t = clamp((y-90)/780,0,1), u = 1-t; return u*u*u*270 + 3*u*u*t*240 + 3*u*t*t*300 + t*t*t*270; }
@@ -256,10 +261,16 @@ const CARDS = {
              d:()=>'Скелет-воин каждые 5 с. Живых не больше 3.', ok:S=>!S.buildings.crypt, apply:S=>build(S,'crypt') },
   cryptUp: { t:'Большой склеп', tag:'Здание', cls:'t-build', ic:'crypt', w:2,
              d:S=>`Лимит скелетов ${S.buildings.crypt.cap}→${S.buildings.crypt.cap+1}.`, ok:S=>S.buildings.crypt&&S.buildings.crypt.cap<BUILD.crypt.maxCap, apply:S=>{S.buildings.crypt.cap++;} },
-  magetower:{ t:'Башня магов', tag:'Здание', cls:'t-build', ic:'mage', w:3,
-             d:()=>'Маг каждые 5 с. Бьёт издалека. Живых не больше 2.', ok:S=>!S.buildings.magetower, apply:S=>build(S,'magetower') },
-  mageUp:  { t:'Высокая башня', tag:'Здание', cls:'t-build', ic:'mage', w:2,
-             d:S=>`Лимит магов ${S.buildings.magetower.cap}→${S.buildings.magetower.cap+1}.`, ok:S=>S.buildings.magetower&&S.buildings.magetower.cap<BUILD.magetower.maxCap, apply:S=>{S.buildings.magetower.cap++;} },
+  frosttower:{ t:'Башня холода', tag:'Здание', cls:'t-build', ic:'freeze', w:3,
+             d:S=>`Маг холода каждые 5 с. Бьёт издалека и замедляет врага на ${Math.round(S.frostSlow*100)}%. Не больше 2.`, ok:S=>!S.buildings.frosttower, apply:S=>build(S,'frosttower') },
+  frostUp: { t:'Высокая башня холода', tag:'Здание', cls:'t-build', ic:'freeze', w:2,
+             d:S=>`Лимит магов холода ${S.buildings.frosttower.cap}→${S.buildings.frosttower.cap+1}.`, ok:S=>S.buildings.frosttower&&S.buildings.frosttower.cap<BUILD.frosttower.maxCap, apply:S=>{S.buildings.frosttower.cap++;} },
+  frostPow:{ t:'Лютый холод', tag:'Улучшение', cls:'t-buff', ic:'freeze', w:1,
+             d:S=>`Маги холода замедляют сильнее: ${Math.round(S.frostSlow*100)}%→${Math.round(S.frostSlow*100)+5}%.`, ok:S=>S.buildings.frosttower&&S.frostSlow<0.249, apply:S=>{S.frostSlow+=0.05;} },
+  necrotower:{ t:'Башня некромантов', tag:'Здание', cls:'t-build', ic:'mage', w:3,
+             d:()=>'Некромант поднимает 3 скелетов каждые 7 с (до 6 живых). Некромантов не больше 1.', ok:S=>!S.buildings.necrotower, apply:S=>build(S,'necrotower') },
+  necroUp: { t:'Ковен', tag:'Здание', cls:'t-build', ic:'mage', w:2,
+             d:S=>`Лимит некромантов ${S.buildings.necrotower.cap}→${S.buildings.necrotower.cap+1}.`, ok:S=>S.buildings.necrotower&&S.buildings.necrotower.cap<BUILD.necrotower.maxCap, apply:S=>{S.buildings.necrotower.cap++;} },
   lair:    { t:'Логово босса', tag:'Здание', cls:'t-build', ic:'lair', w:3,
              d:()=>'Рыцарь смерти раз в 45 с. Только один живой.', ok:S=>!S.buildings.lair, apply:S=>build(S,'lair') },
   lairUp:  { t:'Тёмный ритуал', tag:'Улучшение', cls:'t-buff', ic:'lair', w:1,
@@ -299,6 +310,7 @@ function resize(){
   dpr = Math.min(window.devicePixelRatio || 1, 2);
   cv.width = Math.round(WW*scale*dpr); cv.height = Math.round(WH*scale*dpr);
   buildBg();
+  if (window.R3) R3.resize(cv.width, cv.height);
 }
 window.addEventListener('resize', resize);
 
@@ -314,30 +326,48 @@ function islandPts(ex){
 }
 function pathPts(c, pts){ c.beginPath(); pts.forEach((p,i)=> i?c.lineTo(p[0],p[1]):c.moveTo(p[0],p[1])); c.closePath(); }
 
-function buildBg(){
-  bgCanvas = document.createElement('canvas');
-  bgCanvas.width = cv.width; bgCanvas.height = cv.height;
-  const b = bgCanvas.getContext('2d');
-  b.setTransform(scale*dpr,0,0,scale*dpr,0,0);
+// Позиции декора (общие для 2D и 3D)
+function decorSpots(){
+  const R = mulberry32(4242), out = [];
+  const avoid = [[270,860,90],[270,100,90],[128,720,50],[412,720,50],[128,240,50],[412,240,50],[420,845,45],[120,115,45],
+    [96,852,45],[182,770,45],[356,772,45],[180,925,40],[444,108,45],[358,190,45],[184,188,45],[360,35,40]];
+  const okAt = (x,y)=> Math.abs(x-laneX(y)) > 62 && avoid.every(([ax,ay,r])=>Math.hypot(x-ax,y-ay)>r);
+  const inIsle = (x,y)=>{ const nx=(x-270)/225, ny=(y-480)/440; return Math.pow(Math.abs(nx),5)+Math.pow(Math.abs(ny),5) < 1; };
+  let tries = 0;
+  while (out.length < 46 && tries < 3000){
+    tries++;
+    const x = 30+R()*480, y = 30+R()*900;
+    if (!inIsle(x,y) || !okAt(x,y)) continue;
+    const k = R();
+    out.push({ x, y, kind: k<.38?'tree':k<.66?'rock':k<.86?'grave':'bones', r:R() });
+  }
+  return out;
+}
+// Земля острова: трава, порча, дороги, могилы (используется и как 3D-текстура)
+function paintGround(b, full){
   const R = mulberry32(1337);
-  let g = b.createLinearGradient(0,0,0,WH); g.addColorStop(0,'#0e2832'); g.addColorStop(.5,'#123441'); g.addColorStop(1,'#0e2832');
-  b.fillStyle = g; b.fillRect(0,0,WW,WH);
-  pathPts(b, islandPts(18)); b.fillStyle = '#1b4a54'; b.fill();
-  pathPts(b, islandPts(4)); b.fillStyle = '#a28c5d'; b.fill();
-  pathPts(b, islandPts(-8)); b.fillStyle = '#3b4731'; b.fill();
-  b.save(); pathPts(b, islandPts(-8)); b.clip();
-  for (let i=0;i<260;i++){
+  if (full){
+    let g = b.createLinearGradient(0,0,0,WH); g.addColorStop(0,'#0e2832'); g.addColorStop(.5,'#123441'); g.addColorStop(1,'#0e2832');
+    b.fillStyle = g; b.fillRect(0,0,WW,WH);
+    pathPts(b, islandPts(18)); b.fillStyle = '#1b4a54'; b.fill();
+    pathPts(b, islandPts(4)); b.fillStyle = '#a28c5d'; b.fill();
+    pathPts(b, islandPts(-8)); b.fillStyle = '#3b4731'; b.fill();
+    b.save(); pathPts(b, islandPts(-8)); b.clip();
+  } else {
+    b.fillStyle = '#a28c5d'; b.fillRect(0,0,WW,WH);
+    pathPts(b, islandPts(-10)); b.fillStyle = '#4a5a37'; b.fill();
+    b.save(); pathPts(b, islandPts(-10)); b.clip();
+  }
+  for (let i=0;i<300;i++){
     const x = R()*WW, y = R()*WH, r = 10+R()*40;
-    b.fillStyle = R()<.5 ? 'rgba(80,98,60,.18)' : 'rgba(30,36,26,.22)';
+    b.fillStyle = R()<.5 ? 'rgba(96,118,70,.2)' : 'rgba(30,36,26,.2)';
     b.beginPath(); b.arc(x,y,r,0,Math.PI*2); b.fill();
   }
-  // порча у замков
   [[270,860],[270,100]].forEach(([x,y],i)=>{
     const rg = b.createRadialGradient(x,y,10,x,y,170);
     rg.addColorStop(0, i===0?'rgba(70,50,90,.55)':'rgba(90,40,40,.5)'); rg.addColorStop(1,'rgba(0,0,0,0)');
     b.fillStyle = rg; b.fillRect(x-180,y-180,360,360);
   });
-  // дороги
   b.lineCap = 'round'; b.lineJoin = 'round';
   const road = (w,col)=>{
     b.strokeStyle = col; b.lineWidth = w;
@@ -345,27 +375,22 @@ function buildBg(){
     [[128,720],[412,720],[128,240],[412,240]].forEach(([x,y])=>{ b.beginPath(); b.moveTo(270, y>480?790:170); b.quadraticCurveTo((x+270)/2, y>480?740:220, x, y); b.stroke(); });
   };
   road(46,'rgba(60,48,32,.55)'); road(34,'#6b5a3e');
-  for (let i=0;i<220;i++){ const y = 90+R()*780; const x = 270 + Math.sin(y/140)*14 + (R()-.5)*30; b.fillStyle='rgba(40,30,20,.35)'; b.fillRect(x,y,2+R()*3,2); }
+  for (let i=0;i<220;i++){ const y = 90+R()*780; const x = laneX(y) + (R()-.5)*30; b.fillStyle='rgba(40,30,20,.35)'; b.fillRect(x,y,2+R()*3,2); }
   b.restore();
-  // декор
-  const avoid = [[270,860,90],[270,100,90],[128,720,50],[412,720,50],[128,240,50],[412,240,50],[420,845,45],[120,115,45],
-    [96,852,45],[182,770,45],[356,772,45],[444,108,45],[358,190,45],[184,188,45]];
-  const okAt = (x,y)=> Math.abs(x-270-Math.sin(y/140)*14) > 60 && avoid.every(([ax,ay,r])=>Math.hypot(x-ax,y-ay)>r);
-  const inIsle = (x,y)=>{ const nx=(x-270)/225, ny=(y-480)/440; return Math.pow(Math.abs(nx),5)+Math.pow(Math.abs(ny),5) < 1; };
-  let placed = 0, tries = 0;
-  while (placed < 46 && tries < 2000){
-    tries++;
-    const x = 30+R()*480, y = 30+R()*900;
-    if (!inIsle(x,y) || !okAt(x,y)) continue;
-    placed++;
-    const kind = R();
-    if (kind < .35) drawTree(b,x,y,R);
-    else if (kind < .65) drawRock(b,x,y,R);
-    else if (kind < .85) drawGrave(b,x,y);
-    else drawBones(b,x,y);
+  const R2 = mulberry32(99);
+  for (const d of decorSpots()){
+    if (d.kind==='grave') drawGrave(b,d.x,d.y);
+    else if (d.kind==='bones') drawBones(b,d.x,d.y);
+    else if (full){ if (d.kind==='tree') drawTree(b,d.x,d.y,R2); else drawRock(b,d.x,d.y,R2); }
   }
-  // шахты
-  [0,1].forEach(s=>{ const m = geo(s,GEO.mine); drawMine(b,m.x,m.y); });
+  if (full) [0,1].forEach(s=>{ const m = geo(s,GEO.mine); drawMine(b,m.x,m.y); });
+}
+function buildBg(){
+  bgCanvas = document.createElement('canvas');
+  bgCanvas.width = cv.width; bgCanvas.height = cv.height;
+  const b = bgCanvas.getContext('2d');
+  b.setTransform(scale*dpr,0,0,scale*dpr,0,0);
+  paintGround(b, true);
 }
 function drawTree(b,x,y,R){
   b.fillStyle='rgba(0,0,0,.25)'; b.beginPath(); b.ellipse(x,y+2,10,4,0,0,Math.PI*2); b.fill();
@@ -398,14 +423,14 @@ function drawMine(b,x,y){
 }
 
 // ================= Состояние игры =================
-let G = null;
+let G = null, UID = 0;
 function addEnt(o){
-  const e = Object.assign({ maxHp:o.hp, cdT:0, frozen:0, dead:false, hit:0, anim:Math.random()*10, face:1, moving:false, retarget:0, tgt:null }, o);
+  const e = Object.assign({ uid:++UID, maxHp:o.hp, slowT:0, slow:0, atkAt:-1, born:G.t, cdT:0, frozen:0, dead:false, hit:0, anim:Math.random()*10, face:1, moving:false, retarget:0, tgt:null }, o);
   G.ents.push(e); return e;
 }
 function makeSide(id, mult){
   const S = { id, mult, gold:50, workerMax:3, workerTimer:5, buildings:{}, mods:{dmg:1,hp:1,rate:1}, offer:null, aiDelay:0,
-              spellCd:{summon:SPELLS.summon.cd,meteor:SPELLS.meteor.cd,freeze:SPELLS.freeze.cd}, towers:[], earned:0, income:1 };
+              frostSlow:0.05, spellCd:{summon:SPELLS.summon.cd,meteor:SPELLS.meteor.cd,freeze:SPELLS.freeze.cd}, towers:[], earned:0, income:1 };
   const c = geo(id, GEO.castle);
   S.castle = addEnt({ side:id, kind:'castle', x:c.x, y:c.y, r:44, hp:1500*mult, dmg:18*mult, cd:1, range:175, struct:true });
   GEO.towers.forEach(p=>{ const q = geo(id,p); S.towers.push(addEnt({ side:id, kind:'tower', x:q.x, y:q.y, r:20, hp:600*mult, dmg:12*mult, cd:0.9, range:155, struct:true })); });
@@ -422,7 +447,8 @@ function newGame(level){
   const E = G.sides[1];
   E.income = Math.min(1, 0.6 + (level-1)*0.025);
   if (level >= 8) build(E,'crypt');
-  if (level >= 15) build(E,'magetower');
+  if (level >= 15) build(E,'frosttower');
+  if (level >= 25) build(E,'necrotower');
   if (boss || level >= 30) build(E,'lair');
 }
 function build(S, key){
@@ -436,7 +462,7 @@ function workersAlive(side){ let n=0; for (const e of G.ents) if(!e.dead && e.si
 function spawnUnit(side, type, x, y, home){
   const d = UNIT[type], S = G.sides[side], m = S.mult;
   const e = addEnt({ side, kind:type, x:x+rand(-8,8), y:y+rand(-6,6), r:d.r, hp:d.hp*m*S.mods.hp, dmg:d.dmg*m*S.mods.dmg, cd:d.cd,
-    range:d.range, speed:d.speed, aggro:d.aggro, ranged:!!d.ranged, splash:d.splash||0, unit:true, home:home||null, laneOff:rand(-34,34) });
+    range:d.range, speed:d.speed, aggro:d.aggro, ranged:!!d.ranged, splash:d.splash||0, unit:true, home:home||null, laneOff:rand(-34,34), summon:d.summon||null, sumT:d.summon?d.summon.every:0, frostMage:!!d.frost });
   if (side===0) G.stats.made++;
   G.fx.push({ type:'spawn', x:e.x, y:e.y, t:0, dur:.5, side });
   return e;
@@ -453,7 +479,7 @@ function rollCards(S){
   const out = [];
   const hasBuilding = Object.keys(S.buildings).length > 0;
   if (!hasBuilding){
-    const b = pool.filter(k=>['crypt','magetower','lair'].includes(k));
+    const b = pool.filter(k=>['crypt','frosttower','necrotower','lair'].includes(k));
     const pick = b[Math.floor(Math.random()*b.length)];
     out.push(pick); pool = pool.filter(k=>k!==pick);
   }
@@ -474,7 +500,7 @@ function chooseCard(side, key){
 }
 function aiScore(S, k){
   const lvl = G.level;
-  const base = { crypt:10, magetower:9, worker: S.workerMax<5?8:3, lair:7, cryptUp:6, mageUp:6, haste:5, dmg:5, hp:5, lairUp:4,
+  const base = { crypt:10, necrotower:9, frosttower:8, worker: S.workerMax<5?8:3, lair:7, cryptUp:6, frostUp:5, necroUp:6, frostPow:4, haste:5, dmg:5, hp:5, lairUp:4,
                  fort: S.castle.hp/S.castle.maxHp < .7 ? 8 : 2 }[k] || 1;
   const noise = Math.max(1.5, 10 - lvl*0.25);
   return base + Math.random()*noise;
@@ -520,8 +546,10 @@ function damage(t, amt, bySide){
   }
 }
 function attack(e, t){
+  e.atkAt = G.t;
   if (e.ranged || e.struct){
-    G.projs.push({ x:e.x, y:e.y - (e.struct ? (e.kind==='castle'?50:40) : 18), tgt:t, dmg:e.dmg, side:e.side, speed:e.struct?380:300, arrow:e.struct });
+    G.projs.push({ x:e.x, y:e.y - (e.struct ? (e.kind==='castle'?50:40) : 18), sx:e.x, sy:e.y, tgt:t, dmg:e.dmg, side:e.side, speed:e.struct?380:300, arrow:e.struct,
+      from:e.kind, slow: e.frostMage ? G.sides[e.side].frostSlow : 0 });
   } else {
     damage(t, e.dmg, e.side);
     e.swing = .18;
@@ -554,6 +582,19 @@ function updUnit(e, dt){
   if (e.hit > 0) e.hit -= dt;
   if (e.swing > 0) e.swing -= dt;
   if (e.frozen > 0){ e.frozen -= dt; e.moving = false; return; }
+  if (e.slowT > 0) e.slowT -= dt;
+  const spd = e.speed * (e.slowT > 0 ? 1 - e.slow : 1);
+  if (e.summon && G.phase === 'battle'){
+    e.sumT -= dt;
+    if (e.sumT <= 0){
+      const tag = 'raise' + e.uid;
+      if (countHome(e.side, tag) <= e.summon.max - e.summon.n){
+        e.sumT = e.summon.every; e.castAt = G.t;
+        const dir = e.side===0 ? -1 : 1;
+        for (let i=0;i<e.summon.n;i++){ const s = spawnUnit(e.side,'skeleton', e.x + (i-1)*20, e.y + dir*22, tag); s.maxHp *= .8; s.hp = s.maxHp; }
+      } else e.sumT = 1;
+    }
+  }
   e.cdT -= dt; e.retarget -= dt;
   if (!e.tgt || e.tgt.dead || e.retarget <= 0){ e.tgt = findTarget(e); e.retarget = .4; }
   const t = e.tgt;
@@ -563,7 +604,7 @@ function updUnit(e, dt){
     const tx = laneX(e.y) + e.laneOff, ty = e.y + dir*60;
     const mx = tx-e.x, my = ty-e.y, md = Math.hypot(mx,my) || 1;
     e.moving = true; e.anim += dt;
-    e.x += mx/md*e.speed*dt; e.y += my/md*e.speed*dt;
+    e.x += mx/md*spd*dt; e.y += my/md*spd*dt;
     if (Math.abs(mx) > 2) e.face = mx < 0 ? -1 : 1;
     return;
   }
@@ -574,7 +615,7 @@ function updUnit(e, dt){
     if (e.cdT <= 0){ e.cdT = e.cd; attack(e,t); }
   } else {
     e.moving = true; e.anim += dt;
-    e.x += dx/d*e.speed*dt; e.y += dy/d*e.speed*dt;
+    e.x += dx/d*spd*dt; e.y += dy/d*spd*dt;
     if (Math.abs(dx) > 2) e.face = dx < 0 ? -1 : 1;
   }
 }
@@ -684,7 +725,7 @@ function updProjs(dt){
     if (!t || t.dead){ p.gone = true; continue; }
     const tx = t.x, ty = t.y - 8, dx = tx-p.x, dy = ty-p.y, d = Math.hypot(dx,dy), step = p.speed*dt;
     p.ang = Math.atan2(dy,dx);
-    if (d <= step){ damage(t, p.dmg, p.side); p.gone = true; }
+    if (d <= step){ damage(t, p.dmg, p.side); if (p.slow && !t.struct){ t.slow = Math.max(t.slowT>0?t.slow:0, p.slow); t.slowT = 3; } p.gone = true; }
     else { p.x += dx/d*step; p.y += dy/d*step; }
   }
   G.projs = G.projs.filter(p=>!p.gone);
@@ -737,8 +778,43 @@ function bar(x,y,w,h,f,col){
   ctx.fillStyle = 'rgba(0,0,0,.65)'; ctx.fillRect(x-w/2-1,y-1,w+2,h+2);
   ctx.fillStyle = col; ctx.fillRect(x-w/2,y,w*clamp(f,0,1),h);
 }
-function render(){
+const HGT = { castle:4.4, tower:2.7, skeleton:1.65, necro:1.85, frost:1.8, boss:2.9, worker:1.35 };
+function drawOverlay3D(){
+  const P = (x,y,h)=>R3.toScreen(x,y,h);
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  for (const e of G.ents){
+    if (e.dead) continue;
+    const col = SIDE[e.side];
+    if (e.struct){
+      const p = P(e.x, e.y, HGT[e.kind]);
+      bar(p.x, p.y, e.kind==='castle'?84:42, e.kind==='castle'?6:4, e.hp/e.maxHp, col.main);
+      if (e.kind==='castle'){ ctx.fillStyle='#ece5d3'; ctx.font='700 11px "Alegreya Sans", sans-serif'; ctx.fillText(Math.ceil(e.hp), p.x, p.y+13); }
+    } else if (e.hp < e.maxHp || e.slowT > 0){
+      const p = P(e.x, e.y, HGT[e.worker?'worker':e.kind] || 1.3);
+      const w = e.kind==='boss' ? 34 : 20;
+      if (e.hp < e.maxHp) bar(p.x, p.y, w, 3, e.hp/e.maxHp, col.main);
+      if (e.slowT > 0){ ctx.fillStyle='#7fd3ff'; circ(p.x + w/2 + 4, p.y+1.5, 2.6); ctx.fill(); }
+    }
+  }
+  G.sides.forEach(S=>{
+    const c = S.castle; if (c.dead) return;
+    const p = P(c.x, c.y, HGT.castle), y = p.y - 22;
+    const n = workersAlive(S.id);
+    ctx.fillStyle='rgba(10,12,16,.8)'; roundRect(p.x-38, y-10, 76, 20, 10); ctx.fill();
+    ctx.fillStyle='#f2c14e'; ctx.font='700 13px "Alegreya Sans", sans-serif';
+    ctx.fillText(`Рабочие ${n}/${S.workerMax}`, p.x, y);
+    if (n < S.workerMax && G.phase==='battle') bar(p.x, y+12, 60, 3, 1 - S.workerTimer/5, '#f2c14e');
+    for (const k in S.buildings){
+      const b = S.buildings[k], q = P(b.x, b.y + 22, 0), col = SIDE[S.id], m = countHome(S.id, k);
+      ctx.fillStyle='rgba(10,12,16,.8)'; roundRect(q.x-22, q.y-8, 44, 16, 8); ctx.fill();
+      ctx.fillStyle=col.main; ctx.font='700 12px "Alegreya Sans", sans-serif'; ctx.fillText(`${m}/${b.cap}`, q.x, q.y);
+      if (m < b.cap && G.phase==='battle') bar(q.x, q.y+10, 40, 3, 1 - b.timer/b.interval, col.main);
+    }
+  });
+}
+function render(dt){
   ctx.setTransform(scale*dpr,0,0,scale*dpr,0,0);
+  if (window.R3){ ctx.clearRect(0,0,WW,WH); R3.render(G, dt||0); if (G) drawOverlay3D(); return; }
   if (G && G.shake > 0) ctx.translate(rand(-4,4), rand(-4,4));
   if (bgCanvas){ ctx.save(); ctx.setTransform(1,0,0,1,0,0); ctx.drawImage(bgCanvas,0,0); ctx.restore(); }
   const now = performance.now()/1000;
@@ -756,7 +832,7 @@ function render(){
     else if (e.kind==='tower') drawTower(e,col);
     else if (e.worker) drawWorker(e,col);
     else if (e.kind==='skeleton') drawSkeleton(e,col);
-    else if (e.kind==='mage') drawMage(e,col);
+    else if (e.kind==='necro' || e.kind==='frost') drawMage(e,col);
     else if (e.kind==='boss') drawBoss(e,col);
     if (!e.struct && e.frozen > 0){ ctx.fillStyle='rgba(127,211,255,.35)'; ell(e.x, e.y-e.r, e.r+4, e.r+8); ctx.fill(); }
     if (!e.struct && !e.dead && e.hp < e.maxHp) bar(e.x, e.y - e.r*2 - 12, e.kind==='boss'?34:20, 3, e.hp/e.maxHp, col.main);
@@ -875,7 +951,7 @@ function drawBuilding(S,b){
     ctx.fillStyle='#16171c'; ctx.fillRect(x-8,y-12,16,22);
     ctx.fillStyle=col.glow+'.5)'; ctx.fillRect(x-6,y-10,12,20);
     ctx.strokeStyle='#ece5d3'; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(x,y-34); ctx.lineTo(x,y-24); ctx.moveTo(x-4,y-30); ctx.lineTo(x+4,y-30); ctx.stroke();
-  } else if (b.key==='magetower'){
+  } else if (b.key==='frosttower' || b.key==='necrotower'){
     ctx.fillStyle='#352a4a'; ctx.fillRect(x-11,y-52,22,62);
     ctx.fillStyle='#4b3a68'; ctx.fillRect(x-11,y-52,11,62);
     ctx.fillStyle='#241b33'; ctx.beginPath(); ctx.moveTo(x-16,y-52); ctx.lineTo(x,y-80); ctx.lineTo(x+16,y-52); ctx.fill();
@@ -892,7 +968,7 @@ function drawBuilding(S,b){
   }
   // счётчик и прогресс
   const n = countHome(S.id,b.key);
-  const ly = S.id===0 ? y+20 : y-62 - (b.key==='magetower'?36:0);
+  const ly = S.id===0 ? y+20 : y-62 - (b.key==='frosttower'||b.key==='necrotower'?36:0);
   ctx.fillStyle='rgba(10,12,16,.8)'; roundRect(x-22,ly,44,16,8); ctx.fill();
   ctx.fillStyle=col.main; ctx.font='700 12px "Alegreya Sans", sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
   ctx.fillText(`${n}/${b.cap}`, x, ly+8);
@@ -1102,6 +1178,7 @@ $('btnRetry').addEventListener('click', ()=>startBattle(G.level));
 $('btnToMap').addEventListener('click', ()=>{ G = null; renderMap(); show('scrMap'); });
 
 function toWorld(ev){
+  if (window.R3){ const p = R3.pick(ev.clientX, ev.clientY); if (p) return p; }
   const r = cv.getBoundingClientRect();
   return { x:(ev.clientX - r.left)/r.width*WW, y:(ev.clientY - r.top)/r.height*WH };
 }
@@ -1121,7 +1198,7 @@ function frame(now){
     const dt = raw*G.speed, steps = Math.ceil(dt/.02);
     for (let i=0;i<steps;i++) update(dt/steps);
   } else if (G && G.over){ updFx(raw); }
-  render();
+  render(raw);
   updateHud(raw);
   requestAnimationFrame(frame);
 }
@@ -1129,6 +1206,14 @@ buildSpellBar();
 resize();
 show('scrTitle');
 requestAnimationFrame(frame);
+</script>
+<script type="importmap">{ "imports": { "three": "./lib/three.module.min.js" } }</script>
+<script type="module">
+import { createRenderer } from './render3d.js';
+const ld = document.getElementById('loading');
+createRenderer(document.getElementById('gl'), f => { ld.textContent = `Загрузка 3D… ${Math.round(f*100)}%`; })
+  .then(r => { r.resize(cv.width, cv.height); window.R3 = r; ld.hidden = true; })
+  .catch(err => { console.warn('3D недоступно, работает 2D', err); ld.hidden = true; });
 </script>
 </body>
 </html>
