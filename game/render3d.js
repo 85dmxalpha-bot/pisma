@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from './lib/jsm/loaders/GLTFLoader.js';
 import { OBJLoader } from './lib/jsm/loaders/OBJLoader.js';
 import * as SkeletonUtils from './lib/jsm/utils/SkeletonUtils.js';
-import { buildArena } from './arena3d.js';
+const VQ = new URL(import.meta.url).search;   // ?v=… — сброс кэша
 import { RoomEnvironment } from './lib/jsm/environments/RoomEnvironment.js';
 
 const K = 1/30;                       // 1 пиксель симуляции = 1/30 единицы сцены
@@ -14,8 +14,8 @@ const wz = y => (y - 480) * K;
 // Персонажи: модель, рост (в единицах сцены), оружие, анимации
 const CH = {
   skeleton:{ model:'warrior', h:1.45, r:'blade', l:'shield_small_a', walk:'Walking_D_Skeletons', idle:'Idle_Combat', atk:'1H_Melee_Attack_Chop', ring:.4 },
-  necro:   { model:'mage',    h:1.6,  r:'staff', walk:'Walking_A', idle:'Idle', atk:'Spellcast_Shoot', cast:'Spellcast_Summon', ring:.42 },
-  frost:   { static:'u_scarecrow', h:1.75, ring:.45, hover:true, tint:[.85,.95,1.12] },
+  necro:   { static:'u_scarecrow', h:1.8, ring:.45, hover:true },
+  frost:   { static:'u_mantis', h:1.75, ring:.45, hover:true },
   boss:    { model:'warrior', h:2.6,  r:'axe', l:'shield_large_a', walk:'Walking_D_Skeletons', idle:'Idle_Combat', atk:'2H_Melee_Attack_Chop', ring:.72 },
   worker:  { model:'minion',  h:1.1,  r:'axe', walk:'Walking_A', idle:'Idle', atk:'1H_Melee_Attack_Chop', ring:.3 }
 };
@@ -24,6 +24,7 @@ const BLD = { castle:['castle',104], tower:['tower_a',46], crypt:['barracks',62]
 const COLOR = ['green','red'];
 
 export async function createRenderer(canvas, onProgress){
+  const { buildArena } = await import('./arena3d.js' + VQ);
   const renderer = new THREE.WebGLRenderer({ canvas, antialias:true, powerPreference:'high-performance' });
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -56,16 +57,16 @@ export async function createRenderer(canvas, onProgress){
   const files = [
     ...['warrior','mage','rogue','minion'].map(n=>'sk_'+n),
     ...['blade','shield_small_a','staff','axe','shield_large_a'].map(n=>'w_'+n),
-    'u_scarecrow',
+    'u_scarecrow', 'u_mantis',
     ...COLOR.flatMap(c=>['castle','tower_a','church','tower_b','barracks','mine','blacksmith'].map(b=>`b_${b}_${c}`)),
     ...['rock_single_a','rock_single_c','rock_single_e'].map(n=>'n_'+n)
   ];
   const T = {}; let done = 0;
-  await Promise.all(files.map(f => loader.loadAsync(`./assets/${f}${window.ASSET_EXT || '.glb'}`).then(g=>{
+  await Promise.all(files.map(f => loader.loadAsync(`./assets/${f}${window.ASSET_EXT || '.glb'}${VQ}`).then(g=>{
     g.scene.traverse(o=>{ if (o.isMesh){ o.castShadow = true; o.receiveShadow = true; } });
     T[f] = g; done++; onProgress && onProgress(done/files.length);
   })));
-  const dragonObj = await new OBJLoader().loadAsync(`./assets/dragon.obj${window.OBJ_EXT || ''}`).catch(()=>null);
+  const dragonObj = await new OBJLoader().loadAsync(`./assets/dragon.obj${window.OBJ_EXT || ''}${VQ}`).catch(()=>null);
   arena.addModels(T, dragonObj);
   const size = obj => new THREE.Box3().setFromObject(obj).getSize(new THREE.Vector3());
   const charH = {}; for (const n of ['warrior','mage','rogue','minion']) charH[n] = 2.45; // рост модели в позе
@@ -163,6 +164,7 @@ export async function createRenderer(canvas, onProgress){
     const frozen = e.frozen > 0; v.ice.visible = frozen;
     if (!frozen) v.ph += simDt;
     if (e.atkAt !== v.lastAtk){ v.lastAtk = e.atkAt; v.atkK = 1; }
+    if (e.castAt !== undefined && e.castAt !== v.lastCast){ v.lastCast = e.castAt; v.atkK = 1.6; }
     v.atkK = Math.max(0, v.atkK - simDt*2.5);
     const lean = (e.moving ? .14 : 0) + v.atkK*.35;
     v.body.rotation.x += (lean - v.body.rotation.x) * Math.min(1, dt*8);

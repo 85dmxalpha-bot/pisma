@@ -1209,7 +1209,8 @@ requestAnimationFrame(frame);
 </script>
 <script type="importmap">{ "imports": { "three": "./lib/three.module.min.js" } }</script>
 <script type="module">
-import { createRenderer } from './render3d.js';
+const BUILD = '9';
+const { createRenderer } = await import('./render3d.js?v=' + BUILD);
 const ld = document.getElementById('loading');
 createRenderer(document.getElementById('gl'), f => { ld.textContent = `Загрузка 3D… ${Math.round(f*100)}%`; })
   .then(r => { r.resize(cv.width, cv.height); window.R3 = r; ld.hidden = true; })
