@@ -63,7 +63,15 @@ export async function createRenderer(canvas, onProgress){
     ...['rock_single_a','rock_single_c','rock_single_e'].map(n=>'n_'+n)
   ];
   const T = {}; let done = 0;
-  await Promise.all(files.map(f => loader.loadAsync(`./assets/${f}${window.ASSET_EXT || '.glb'}${VQ}`).then(g=>{
+  // В артефакте модели лежат как base64-текст (.glb.txt): распаковываем сами, без data:-ссылок
+  const loadGLB = async f => {
+    if (window.ASSET_EXT !== '.b64') return loader.loadAsync(`./assets/${f}.glb${VQ}`);
+    const txt = await (await fetch(`./assets/${f}.glb.txt${VQ}`)).text();
+    const bin = atob(txt.trim()), buf = new Uint8Array(bin.length);
+    for (let i=0;i<bin.length;i++) buf[i] = bin.charCodeAt(i);
+    return loader.parseAsync(buf.buffer, './assets/');
+  };
+  await Promise.all(files.map(f => loadGLB(f).then(g=>{
     g.scene.traverse(o=>{ if (o.isMesh){ o.castShadow = true; o.receiveShadow = true; } });
     T[f] = g; done++; onProgress && onProgress(done/files.length);
   })));

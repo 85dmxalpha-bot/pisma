@@ -1222,7 +1222,7 @@ window.addEventListener('error', e => { const l = document.getElementById('loadi
 setTimeout(() => { const l = document.getElementById('loading'); if (l && !window.R3 && !/Ошибка|не загрузилось/.test(l.textContent)) { l.style.color = '#e5554b'; l.textContent += ' — долго грузится. Проверьте интернет или обновите страницу.'; } }, 25000);
 </script>
 <script type="module">
-const BUILD = '10';
+const BUILD = '11';
 document.getElementById('ver').textContent = 'версия ' + BUILD;
 const { createRenderer } = await import('./render3d.js?v=' + BUILD);
 const ld = document.getElementById('loading');
