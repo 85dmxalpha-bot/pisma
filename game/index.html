@@ -405,7 +405,7 @@ function addEnt(o){
 }
 function makeSide(id, mult){
   const S = { id, mult, gold:50, workerMax:3, workerTimer:5, buildings:{}, mods:{dmg:1,hp:1,rate:1}, offer:null, aiDelay:0,
-              spellCd:{summon:0,meteor:0,freeze:0}, towers:[], earned:0, income:1 };
+              spellCd:{summon:SPELLS.summon.cd,meteor:SPELLS.meteor.cd,freeze:SPELLS.freeze.cd}, towers:[], earned:0, income:1 };
   const c = geo(id, GEO.castle);
   S.castle = addEnt({ side:id, kind:'castle', x:c.x, y:c.y, r:44, hp:1500*mult, dmg:18*mult, cd:1, range:175, struct:true });
   GEO.towers.forEach(p=>{ const q = geo(id,p); S.towers.push(addEnt({ side:id, kind:'tower', x:q.x, y:q.y, r:20, hp:600*mult, dmg:12*mult, cd:0.9, range:155, struct:true })); });
@@ -421,7 +421,6 @@ function newGame(level){
   G.sides = [ makeSide(0,1), makeSide(1,diff) ];
   const E = G.sides[1];
   E.income = Math.min(1, 0.6 + (level-1)*0.025);
-  E.spellCd = { summon:15, meteor:30, freeze:35 };
   if (level >= 8) build(E,'crypt');
   if (level >= 15) build(E,'magetower');
   if (boss || level >= 30) build(E,'lair');
