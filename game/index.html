@@ -805,9 +805,20 @@ function drawOverlay3D(){
       if (e.slowT > 0){ ctx.fillStyle='#7fd3ff'; circ(p.x + w/2 + 4, p.y+1.5, 2.6); ctx.fill(); }
     }
   }
+  // полоса здоровья вражеского замка — всегда на виду вверху поля
+  {
+    const c = G.sides[1].castle, f = c.dead ? 0 : c.hp/c.maxHp, hitNow = c.hit > 0;
+    ctx.fillStyle = 'rgba(10,12,16,.82)'; roundRect(120, 6, 300, 26, 13); ctx.fill();
+    ctx.fillStyle = '#3a1a18'; roundRect(178, 13, 180, 12, 6); ctx.fill();
+    ctx.fillStyle = hitNow ? '#ffb0a8' : '#e5554b'; roundRect(178, 13, Math.max(0, 180*f), 12, 6); ctx.fill();
+    ctx.font = '700 12px "Alegreya Sans", sans-serif'; ctx.fillStyle = '#ece5d3'; ctx.textAlign = 'left';
+    ctx.fillText('Враг', 132, 19.5);
+    ctx.textAlign = 'right'; ctx.fillText(Math.ceil(c.hp), 410, 19.5);
+    ctx.textAlign = 'center';
+  }
   G.sides.forEach(S=>{
     const c = S.castle; if (c.dead) return;
-    const p = P(c.x, c.y, HGT.castle), y = p.y - 22;
+    const p = P(c.x, c.y, HGT.castle), y = S.id===1 ? Math.max(48, p.y - 22) : p.y - 22;
     const n = workersAlive(S.id);
     ctx.fillStyle='rgba(10,12,16,.8)'; roundRect(p.x-38, y-10, 76, 20, 10); ctx.fill();
     ctx.fillStyle='#f2c14e'; ctx.font='700 13px "Alegreya Sans", sans-serif';
@@ -1222,7 +1233,7 @@ window.addEventListener('error', e => { const l = document.getElementById('loadi
 setTimeout(() => { const l = document.getElementById('loading'); if (l && !window.R3 && !/Ошибка|не загрузилось/.test(l.textContent)) { l.style.color = '#e5554b'; l.textContent += ' — долго грузится. Проверьте интернет или обновите страницу.'; } }, 25000);
 </script>
 <script type="module">
-const BUILD = '12';
+const BUILD = '13';
 document.getElementById('ver').textContent = 'версия ' + BUILD;
 const { createRenderer } = await import('./render3d.js?v=' + BUILD);
 const ld = document.getElementById('loading');

@@ -39,8 +39,8 @@ export async function createRenderer(canvas, onProgress){
   scene.background = new THREE.Color(0x140f1a);
   scene.fog = new THREE.Fog(0x140f1a, 42, 80);
 
-  const camera = new THREE.PerspectiveCamera(30, 540/960, 1, 150);
-  const CAM_POS = new THREE.Vector3(0, 50, 22.5), CAM_LOOK = new THREE.Vector3(0, 0, 2.3);
+  const camera = new THREE.PerspectiveCamera(32, 540/960, 1, 150);
+  const CAM_POS = new THREE.Vector3(0, 52, 20.5), CAM_LOOK = new THREE.Vector3(0, 0, .9);
   camera.position.copy(CAM_POS); camera.lookAt(CAM_LOOK);
 
   scene.add(new THREE.HemisphereLight(0xd8d0ff, 0x3b2a22, .95));
