@@ -17,7 +17,8 @@ const CH = {
   necro:   { static:'u_scarecrow', h:1.8, ring:.45, hover:true },
   frost:   { static:'u_mantis', h:1.75, ring:.45, hover:true },
   wraith:  { static:'u_wraith', h:1.7, ring:.42, hover:true, lift:.55, noOrb:true },
-  boss:    { model:'warrior', h:2.6,  r:'axe', l:'shield_large_a', walk:'Walking_D_Skeletons', idle:'Idle_Combat', atk:'2H_Melee_Attack_Chop', ring:.72 },
+  boss:    { static:'u_werewolf', h:2.7, ring:.8, stomp:true, noOrb:true },
+  goo:     { static:'u_goo_skeleton', h:1.45, ring:.38, stomp:true, noOrb:true },
   worker:  { model:'minion',  h:1.1,  r:'axe', walk:'Walking_A', idle:'Idle', atk:'1H_Melee_Attack_Chop', ring:.3 }
 };
 // Здания: модель и ширина в пикселях симуляции
@@ -58,7 +59,7 @@ export async function createRenderer(canvas, onProgress){
   const files = [
     ...['warrior','mage','rogue','minion'].map(n=>'sk_'+n),
     ...['blade','shield_small_a','staff','axe','shield_large_a'].map(n=>'w_'+n),
-    'u_scarecrow', 'u_mantis', 'u_wraith',
+    'u_scarecrow', 'u_mantis', 'u_wraith', 'u_werewolf', 'u_goo_skeleton',
     ...COLOR.flatMap(c=>['castle','tower_a','church','tower_b','barracks','mine','blacksmith'].map(b=>`b_${b}_${c}`)),
     ...['rock_single_a','rock_single_c','rock_single_e'].map(n=>'n_'+n)
   ];
@@ -112,7 +113,7 @@ export async function createRenderer(canvas, onProgress){
   // ---------- Виды сущностей ----------
   const views = new Set();
   function makeUnitView(e){
-    const d = CH[e.worker ? 'worker' : e.kind];
+    const d = CH[e.worker ? 'worker' : (e.kind==='skeleton' && e.home && String(e.home).startsWith('raise')) ? 'goo' : e.kind];
     if (d.static) return makeStaticView(e, d);
     const tpl = T['sk_'+d.model];
     const model = SkeletonUtils.clone(tpl.scene);
@@ -177,8 +178,15 @@ export async function createRenderer(canvas, onProgress){
     v.atkK = Math.max(0, v.atkK - simDt*2.5);
     const lean = (e.moving ? .14 : 0) + v.atkK*.35;
     v.body.rotation.x += (lean - v.body.rotation.x) * Math.min(1, dt*8);
-    v.body.rotation.z = .05*Math.sin(v.ph*1.7);
-    v.body.position.y = (d.lift || .18) + .08*Math.sin(v.ph*3);
+    if (d.stomp){
+      const step = e.moving && !frozen ? Math.abs(Math.sin(v.ph*(e.kind==='boss'?4.5:7))) : 0;
+      v.body.position.y = step * (e.kind==='boss' ? .12 : .1);
+      v.body.rotation.z = e.moving ? .07*Math.sin(v.ph*(e.kind==='boss'?4.5:7)) : .02*Math.sin(v.ph*1.5);
+      v.body.scale.setScalar(1 + v.atkK*.08);
+    } else {
+      v.body.rotation.z = .05*Math.sin(v.ph*1.7);
+      v.body.position.y = (d.lift || .18) + .08*Math.sin(v.ph*3);
+    }
     v.orb.scale.setScalar(1 + v.atkK*1.6 + .15*Math.sin(v.ph*6));
   }
   function play(v, name, once, speed){
