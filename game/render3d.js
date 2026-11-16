@@ -95,7 +95,7 @@ export async function createRenderer(canvas, onProgress){
     ...['tree_single_a','tree_single_b','rock_single_a','rock_single_c','rock_single_e','mountain_a_grass_trees','mountain_b','hills_a_trees'].map(n=>'n_'+n)
   ];
   const T = {}; let done = 0;
-  await Promise.all(files.map(f => loader.loadAsync(`./assets/${f}.glb`).then(g=>{
+  await Promise.all(files.map(f => loader.loadAsync(`./assets/${f}${window.ASSET_EXT || '.glb'}`).then(g=>{
     g.scene.traverse(o=>{ if (o.isMesh){ o.castShadow = true; o.receiveShadow = true; } });
     T[f] = g; done++; onProgress && onProgress(done/files.length);
   })));
