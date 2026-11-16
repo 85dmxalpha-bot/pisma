@@ -1159,6 +1159,7 @@ function renderMap(){
 }
 function startBattle(n){
   newGame(n);
+  if (window.R3) R3.resetCam();
   hideCards(); setAim(null);
   $('lvlLabel').textContent = `Остров ${G.island} · Этап ${G.stage}${G.boss?' · Босс':''}`;
   $('btnSpeed').textContent = 'x1';
@@ -1202,12 +1203,24 @@ function toWorld(ev){
   const r = cv.getBoundingClientRect();
   return { x:(ev.clientX - r.left)/r.width*WW, y:(ev.clientY - r.top)/r.height*WH };
 }
-cv.addEventListener('pointermove', ev=>{ if (G) G.pointer = toWorld(ev); });
-cv.addEventListener('pointerdown', ev=>{
-  if (!G || G.over || G.paused) return;
+// касание — прицел заклинания; протяжка — прокрутка камеры
+let drag = null;
+cv.addEventListener('pointerdown', ev=>{ drag = { y:ev.clientY, x:ev.clientX, moved:false }; try { cv.setPointerCapture(ev.pointerId); } catch(e){} if (G) G.pointer = toWorld(ev); });
+cv.addEventListener('pointermove', ev=>{
+  if (G) G.pointer = toWorld(ev);
+  if (drag){
+    const dy = ev.clientY - drag.y;
+    if (!drag.moved && Math.abs(dy) > 8) drag.moved = true;
+    if (drag.moved && window.R3){ R3.pan(dy / scale); drag.y = ev.clientY; }
+  }
+});
+cv.addEventListener('pointerup', ev=>{
+  const d = drag; drag = null;
+  if (!d || d.moved || !G || G.over || G.paused) return;
   const p = toWorld(ev); G.pointer = p;
   if (G.aim){ if (castSpell(0, G.aim, p.x, p.y)) setAim(null); }
 });
+cv.addEventListener('pointercancel', ()=>{ drag = null; });
 window.addEventListener('keydown', ev=>{ if (ev.key==='Escape' && G) setAim(null); });
 
 // ================= Цикл =================
@@ -1233,7 +1246,7 @@ window.addEventListener('error', e => { const l = document.getElementById('loadi
 setTimeout(() => { const l = document.getElementById('loading'); if (l && !window.R3 && !/Ошибка|не загрузилось/.test(l.textContent)) { l.style.color = '#e5554b'; l.textContent += ' — долго грузится. Проверьте интернет или обновите страницу.'; } }, 25000);
 </script>
 <script type="module">
-const BUILD = '13';
+const BUILD = '14';
 document.getElementById('ver').textContent = 'версия ' + BUILD;
 const { createRenderer } = await import('./render3d.js?v=' + BUILD);
 const ld = document.getElementById('loading');

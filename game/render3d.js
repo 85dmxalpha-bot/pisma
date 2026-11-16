@@ -37,11 +37,14 @@ export async function createRenderer(canvas, onProgress){
   const scene = new THREE.Scene();
   const envTex = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(renderer), .04).texture;
   scene.background = new THREE.Color(0x140f1a);
-  scene.fog = new THREE.Fog(0x140f1a, 42, 80);
+  scene.fog = new THREE.Fog(0x140f1a, 30, 62);
 
-  const camera = new THREE.PerspectiveCamera(32, 540/960, 1, 150);
-  const CAM_POS = new THREE.Vector3(0, 52, 20.5), CAM_LOOK = new THREE.Vector3(0, 0, .9);
-  camera.position.copy(CAM_POS); camera.lookAt(CAM_LOOK);
+  const camera = new THREE.PerspectiveCamera(40, 540/960, .5, 150);
+  // Камера под углом ~50°, едет вдоль поля за боем; палец двигает её вверх/вниз
+  const CAM_OFF = new THREE.Vector3(0, 20.5, 16.5), CAM_MIN = -9.5, CAM_MAX = 7.5;
+  let camZ = 6, camTarget = 6, lastPan = -10;
+  const CAM_LOOK = new THREE.Vector3(0, 0, camZ);
+  camera.position.copy(CAM_LOOK).add(CAM_OFF); camera.lookAt(CAM_LOOK);
 
   scene.add(new THREE.HemisphereLight(0xd8d0ff, 0x3b2a22, .95));
   const sun = new THREE.DirectionalLight(0xfff0d8, 2.4);
@@ -393,7 +396,19 @@ export async function createRenderer(canvas, onProgress){
       if (v.kind==='struct' || v.kind==='bld') removeStruct(v);
       else removeView(v);
     }
-    camera.position.copy(CAM_POS);
+    // слежение за линией фронта
+    if (G && !G.aim && now - lastPan > 3){
+      let front0 = null, front1 = null;
+      for (const e of G.ents){ if (e.dead || !e.unit) continue; if (e.side===0) front0 = front0===null ? e.y : Math.min(front0, e.y); else front1 = front1===null ? e.y : Math.max(front1, e.y); }
+      let fy = 700;
+      if (front0 !== null && front1 !== null) fy = (front0 + front1)/2 + 60;
+      else if (front0 !== null) fy = front0 + 120;
+      else if (front1 !== null) fy = front1 + 140;
+      camTarget = Math.min(CAM_MAX, Math.max(CAM_MIN, wz(fy)));
+    }
+    camZ += (camTarget - camZ) * Math.min(1, dt * (now - lastPan < .2 ? 12 : 1.6));
+    CAM_LOOK.set(0, 0, camZ);
+    camera.position.copy(CAM_LOOK).add(CAM_OFF);
     if (shakeT > 0){ camera.position.x += (Math.random()-.5)*.5; camera.position.z += (Math.random()-.5)*.5; }
     camera.lookAt(CAM_LOOK);
     renderer.render(scene, camera);
@@ -411,6 +426,8 @@ export async function createRenderer(canvas, onProgress){
     if (!ray.ray.intersectPlane(plane, hit)) return null;
     return { x: hit.x/K + 270, y: hit.z/K + 480 };
   }
+  function pan(dyPx){ camTarget = Math.min(CAM_MAX, Math.max(CAM_MIN, camTarget - dyPx*.045)); lastPan = performance.now()/1000; }
+  function resetCam(){ camZ = camTarget = 6; lastPan = -10; }
   function resize(w, h){ renderer.setPixelRatio(1); renderer.setSize(w, h, false); }
-  return { render, toScreen, pick, resize };
+  return { render, toScreen, pick, resize, pan, resetCam };
 }
