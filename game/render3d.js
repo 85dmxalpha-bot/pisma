@@ -429,5 +429,34 @@ export async function createRenderer(canvas, onProgress){
   function pan(dyPx){ camTarget = Math.min(CAM_MAX, Math.max(CAM_MIN, camTarget - dyPx*.045)); lastPan = performance.now()/1000; }
   function resetCam(){ camZ = camTarget = 6; lastPan = -10; }
   function resize(w, h){ renderer.setPixelRatio(1); renderer.setSize(w, h, false); }
-  return { render, toScreen, pick, resize, pan, resetCam };
+  // Портрет героя/замка для экранов города (снимок модели)
+  let pr = null;
+  async function portrait(kind){
+    if (!pr){ pr = new THREE.WebGLRenderer({ antialias:true, alpha:true, preserveDrawingBuffer:true }); pr.setSize(200, 200, false); pr.outputColorSpace = THREE.SRGBColorSpace; pr.toneMapping = THREE.ACESFilmicToneMapping; }
+    const sc = new THREE.Scene();
+    sc.add(new THREE.HemisphereLight(0xffffff, 0x3a3046, 1.7));
+    const dl = new THREE.DirectionalLight(0xfff0d8, 2.6); dl.position.set(2, 4, 5); sc.add(dl);
+    const rim = new THREE.DirectionalLight(0x9f8cff, 1.4); rim.position.set(-3, 2, -4); sc.add(rim);
+    let obj;
+    if (kind === 'castle') obj = T['b_castle_green'].scene.clone(true);
+    else {
+      const d = CH[kind];
+      if (d.static) obj = T[d.static].scene.clone(true);
+      else {
+        const tpl = T['sk_'+d.model];
+        obj = SkeletonUtils.clone(tpl.scene);
+        for (const [bone, w] of [['handslot.r', d.r], ['handslot.l', d.l]]){ if (!w) continue; const b = obj.getObjectByName(bone); if (b) b.add(T['w_'+w].scene.clone(true)); }
+        const mx = new THREE.AnimationMixer(obj); const clip = THREE.AnimationClip.findByName(tpl.animations, d.idle);
+        if (clip){ mx.clipAction(clip).play(); mx.update(.4); }
+      }
+    }
+    sc.add(obj); obj.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(obj), sz = box.getSize(new THREE.Vector3()), c = box.getCenter(new THREE.Vector3());
+    const cam = new THREE.PerspectiveCamera(30, 1, .01, 100);
+    const dist = Math.max(sz.y, sz.x*.9) * (kind==='castle' ? 2.3 : 2.1);
+    cam.position.set(c.x + dist*.3, c.y + sz.y*(kind==='castle' ? .55 : .12), c.z + dist); cam.lookAt(c);
+    pr.render(sc, cam);
+    return pr.domElement.toDataURL('image/png');
+  }
+  return { render, toScreen, pick, resize, pan, resetCam, portrait };
 }

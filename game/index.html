@@ -118,6 +118,64 @@ h2{font-family:var(--f-display);font-weight:800;font-size:30px;margin:0;text-ali
 .result.win{color:var(--necro)} .result.lose{color:var(--blood)} .result.draw{color:var(--gold)}
 .stats{display:grid;grid-template-columns:auto auto;gap:6px 24px;font-size:18px;font-variant-numeric:tabular-nums}
 .stats span:nth-child(odd){color:var(--muted)}
+/* Главный город */
+#scrBase{padding:0;gap:0;justify-content:flex-start;background:radial-gradient(ellipse at 50% 0%,#2a2035,#0b0e12 60%)}
+.bhead{position:sticky;top:0;z-index:2;width:100%;box-sizing:border-box;padding:12px 14px;display:flex;align-items:center;gap:10px;background:rgba(21,25,32,.92);border-bottom:1px solid var(--line)}
+.bhead .tt{flex:1;font-family:var(--f-display);font-weight:800;font-size:20px}
+.goldpill{display:flex;align-items:center;gap:6px;padding:5px 12px 5px 6px;border-radius:20px;background:#22262e;border:1px solid #5b4a1c;font-family:var(--f-display);font-weight:800;color:var(--gold);font-variant-numeric:tabular-nums}
+.bbody{width:100%;box-sizing:border-box;padding:14px 16px 110px;display:flex;flex-direction:column;gap:18px}
+.city{position:relative;height:190px;border-radius:16px;overflow:hidden;border:1px solid var(--line);background:linear-gradient(180deg,#3b2a4a,#1a1420 70%);display:flex;align-items:flex-end;justify-content:center}
+.city img{height:180px;filter:drop-shadow(0 10px 18px rgba(0,0,0,.6))}
+.city .cname{position:absolute;left:14px;top:12px;font-family:var(--f-display);font-weight:800;font-size:22px;text-shadow:0 2px 6px #000}
+.city .csub{position:absolute;left:14px;top:42px;font-size:14px;color:#cfc8b8;text-shadow:0 1px 4px #000}
+.sec{font-family:var(--f-display);font-weight:800;font-size:17px;letter-spacing:.5px;color:#d9d2bf}
+.chests{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.cslot{aspect-ratio:1/1.05;border-radius:12px;border:1.5px dashed #3a4150;display:grid;place-items:center;color:#5d6573;font-size:12px;background:rgba(255,255,255,.02);padding:0}
+.cslot.full{border-style:solid;border-color:transparent;background:none;cursor:pointer}
+.chest{position:relative;width:78%;aspect-ratio:1.2/1}
+.chest .lid{position:absolute;left:0;right:0;top:0;height:42%;border-radius:40% 40% 6px 6px / 60% 60% 6px 6px}
+.chest .box{position:absolute;left:0;right:0;bottom:0;height:62%;border-radius:4px 4px 8px 8px}
+.chest .band{position:absolute;left:44%;width:12%;top:8%;bottom:4%;border-radius:2px}
+.chest .lock{position:absolute;left:38%;width:24%;top:34%;height:22%;border-radius:4px;box-shadow:0 0 0 2px rgba(0,0,0,.35) inset}
+.chest.grey .lid,.chest.grey .box{background:linear-gradient(180deg,#9aa0a8,#5c626b)} .chest.grey .band,.chest.grey .lock{background:#3c4047}
+.chest.purple .lid,.chest.purple .box{background:linear-gradient(180deg,#a77be8,#5a2f9c)} .chest.purple .band,.chest.purple .lock{background:#e0c25a}
+.chest.gold .lid,.chest.gold .box{background:linear-gradient(180deg,#ffe08a,#c08a1e)} .chest.gold .band,.chest.gold .lock{background:#7a3d0c}
+.chest.gold{filter:drop-shadow(0 0 10px rgba(242,193,78,.55))} .chest.purple{filter:drop-shadow(0 0 8px rgba(162,123,255,.45))}
+.cslot .cl{font-size:11px;color:#cfc8b8;margin-top:4px}
+.heroes{display:flex;flex-direction:column;gap:10px}
+.hero{display:grid;grid-template-columns:72px 1fr;gap:12px;padding:10px;border-radius:14px;background:var(--panel);border:1px solid var(--line)}
+.hero .pic{width:72px;height:72px;border-radius:12px;background:radial-gradient(circle at 50% 35%,#3a3346,#1a1720);display:grid;place-items:center;overflow:hidden}
+.hero .pic img{width:100%;height:100%;object-fit:contain}
+.hero .pic svg{width:40px;height:40px}
+.hero .info{min-width:0;display:flex;flex-direction:column;gap:5px}
+.hero .row1{display:flex;align-items:baseline;gap:8px}
+.hero .nm{font-family:var(--f-display);font-weight:800;font-size:16px}
+.hero .lv{margin-left:auto;font-weight:700;color:var(--gold);font-variant-numeric:tabular-nums}
+.rar{font-size:10px;text-transform:uppercase;letter-spacing:1px;padding:1px 6px;border-radius:6px}
+.rar.common{background:#3a3f48;color:#cfd3da} .rar.rare{background:#3a2a5c;color:#c9b2ff} .rar.epic{background:#5c3f10;color:#ffd77a}
+.cbar{position:relative;height:16px;border-radius:8px;background:#262b33;overflow:hidden}
+.cbar i{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(90deg,#2f6d2a,#8be36b)}
+.cbar span{position:absolute;inset:0;display:grid;place-items:center;font-size:11px;font-weight:700;font-variant-numeric:tabular-nums;text-shadow:0 1px 2px #000}
+.hero .eff{font-size:13px;color:#bfb8a8}
+.upbtn{align-self:flex-start;padding:6px 12px;border-radius:9px;border:1px solid #5d7a3f;background:linear-gradient(180deg,#4c6b33,#2f4620);font-weight:700;font-size:13px}
+.upbtn[disabled]{opacity:.45;cursor:default}
+#btnToBattle{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:3;min-width:300px}
+#scrChest{gap:14px}
+#chestTitle{font-family:var(--f-display);font-weight:800;font-size:26px}
+.loot{display:grid;grid-template-columns:repeat(3,120px);gap:12px}
+.lcard{height:150px;border-radius:12px;perspective:600px}
+.lcard .in{position:relative;width:100%;height:100%;transition:transform .45s;transform-style:preserve-3d}
+.lcard.open .in{transform:rotateY(180deg)}
+.lcard .f,.lcard .b{position:absolute;inset:0;border-radius:12px;backface-visibility:hidden;-webkit-backface-visibility:hidden;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px}
+.lcard .b{background:repeating-linear-gradient(45deg,#2a2236,#2a2236 8px,#231c2e 8px,#231c2e 16px);border:2px solid #4a4256}
+.lcard .f{transform:rotateY(180deg);background:linear-gradient(170deg,#2a2236,#17141d);border:2px solid #5c4a86}
+.lcard .f.common{border-color:#6b717b} .lcard .f.rare{border-color:#8a63e0} .lcard .f.epic{border-color:#e0b54a;box-shadow:0 0 14px rgba(242,193,78,.35)} .lcard .f.goldc{border-color:#c08a1e}
+.lcard img{width:70px;height:70px;object-fit:contain}
+.lcard .q{font-family:var(--f-display);font-weight:800;font-size:20px}
+.lcard .n{font-size:12px;color:#cfc8b8;text-align:center}
+.reward{display:flex;align-items:center;gap:14px;padding:10px 16px;border-radius:12px;background:rgba(255,255,255,.04);border:1px solid var(--line)}
+.reward .chest{width:56px}
+@media (prefers-reduced-motion:reduce){.lcard .in{transition:none}}
 @media (prefers-reduced-motion:reduce){.card,.node.cur{animation:none}}
 </style>
 </head>
@@ -187,13 +245,33 @@ h2{font-family:var(--f-display);font-weight:800;font-size:30px;margin:0;text-ali
     <button class="btn alt" id="btnSurrender">Сдаться</button>
   </div>
 
+  <div class="screen" id="scrBase" hidden>
+    <div class="bhead"><button class="icon-btn" id="btnBaseBack" aria-label="Назад">&lt;</button><div class="tt">Некрополь</div><div class="goldpill"><div class="coin"></div><span id="baseGold">0</span></div></div>
+    <div class="bbody">
+      <div class="city"><img id="cityImg" alt=""><div class="cname">Некрополь</div><div class="csub" id="cityProgress"></div></div>
+      <div class="sec">Сундуки</div>
+      <div class="chests" id="chestSlots"></div>
+      <div class="sec">Герои</div>
+      <div class="heroes" id="heroList"></div>
+    </div>
+    <button class="btn" id="btnToBattle">В бой</button>
+  </div>
+
+  <div class="screen dim" id="scrChest" hidden>
+    <div id="chestTitle">Сундук</div>
+    <div class="loot" id="lootGrid"></div>
+    <button class="btn" id="btnLootTake" hidden>Забрать</button>
+  </div>
+
   <div class="screen dim" id="scrResult" hidden>
     <div class="result" id="resTitle">Победа</div>
     <div class="sub" id="resSub"></div>
+    <div class="reward" id="resReward" hidden></div>
     <div class="stats" id="resStats"></div>
     <button class="btn" id="btnNext">Дальше</button>
     <button class="btn alt" id="btnRetry">Ещё раз</button>
     <button class="btn alt" id="btnToMap">К карте</button>
+    <button class="btn alt" id="btnToBase">В город</button>
   </div>
 </div>
 </div>
@@ -297,6 +375,46 @@ const CARDS = {
 const SAVE_KEY = 'island-war-v1';
 let save = { cleared:0 };
 try { const s = JSON.parse(localStorage.getItem(SAVE_KEY)); if (s && typeof s.cleared==='number') save = s; } catch(e) {}
+// мета-прогресс: золото, сундуки, карточки и уровни героев
+const HEROES = {
+  skeleton:{ name:'Скелет-воин', rar:'common', ic:'crypt',  eff:l=>`Здоровье +${(l-1)*20}%, урон +${(l-1)*10}%` },
+  necro:   { name:'Некромант',   rar:'rare',   ic:'mage',   eff:l=>`Поднятые скелеты: здоровье +${(l-1)*20}%` },
+  frost:   { name:'Маг холода',  rar:'rare',   ic:'freeze', eff:l=>`Урон +${(l-1)*15}%, замедление +${(l-1)*2}%` },
+  wraith:  { name:'Призрак',     rar:'rare',   ic:'summon', eff:l=>`Здоровье +${(l-1)*15}%, урон +${(l-1)*15}%` },
+  boss:    { name:'Оборотень',   rar:'epic',   ic:'lair',   eff:l=>`Здоровье +${(l-1)*20}%, урон +${(l-1)*10}%` }
+};
+const UPCOST = { 1:{cards:20,gold:200}, 2:{cards:50,gold:500}, 3:{cards:100,gold:1200}, 4:{cards:200,gold:3000} };
+const MAX_LVL = 5;
+const CHESTS = {
+  grey:  { name:'Серый сундук',      goldP:.4,  gold:[10,30],  rar:{common:70, rare:27, epic:3} },
+  purple:{ name:'Фиолетовый сундук', goldP:.3,  gold:[25,60],  rar:{common:50, rare:40, epic:10} },
+  gold:  { name:'Золотой сундук',    goldP:.25, gold:[60,150], rar:{common:30, rare:45, epic:25} }
+};
+const CARD_QTY = { common:[1,5], rare:[1,3], epic:[1,2] };
+save.gold = save.gold || 0; save.chests = save.chests || []; save.heroes = save.heroes || {};
+for (const k in HEROES) save.heroes[k] = save.heroes[k] || { lvl:1, cards:0 };
+const heroLvl = k => (save.heroes[k] || { lvl:1 }).lvl;
+const ri = (a,b) => a + Math.floor(Math.random()*(b-a+1));
+function rollChest(){ const r = Math.random()*100; return r < 65 ? 'grey' : r < 90 ? 'purple' : 'gold'; }
+function openChest(type){
+  const C = CHESTS[type], out = [];
+  for (let i=0;i<6;i++){
+    if (Math.random() < C.goldP){ out.push({ gold: ri(C.gold[0], C.gold[1]) }); continue; }
+    let r = Math.random()*100, rar = 'common';
+    for (const k of ['common','rare','epic']){ r -= C.rar[k]; if (r <= 0){ rar = k; break; } }
+    const pool = Object.keys(HEROES).filter(k=>HEROES[k].rar===rar);
+    const hero = pool[Math.floor(Math.random()*pool.length)];
+    out.push({ hero, qty: ri(CARD_QTY[rar][0], CARD_QTY[rar][1]), rar });
+  }
+  for (const it of out){ if (it.gold) save.gold += it.gold; else save.heroes[it.hero].cards += it.qty; }
+  persist();
+  return out;
+}
+function upgradeHero(k){
+  const h = save.heroes[k], c = UPCOST[h.lvl];
+  if (!c || h.cards < c.cards || save.gold < c.gold) return false;
+  h.cards -= c.cards; save.gold -= c.gold; h.lvl++; persist(); return true;
+}
 function persist(){ try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch(e) {} }
 
 // ================= Утилиты =================
@@ -471,7 +589,17 @@ function spawnUnit(side, type, x, y, home){
   const d = UNIT[type], S = G.sides[side], m = S.mult;
   const e = addEnt({ side, kind:type, x:x+rand(-8,8), y:y+rand(-6,6), r:d.r, hp:d.hp*m*S.mods.hp, dmg:d.dmg*m*S.mods.dmg, cd:d.cd,
     range:d.range, speed:d.speed, aggro:d.aggro, ranged:!!d.ranged, splash:d.splash||0, unit:true, home:home||null, laneOff:rand(-34,34), summon:d.summon||null, sumT:d.summon?d.summon.every:0, frostMage:!!d.frost, drain:d.drain||0 });
-  if (side===0) G.stats.made++;
+  if (side===0){
+    G.stats.made++;
+    const L = k => heroLvl(k) - 1, raised = home && String(home).startsWith('raise');
+    if (raised) e.maxHp *= 1 + .2*L('necro');
+    else if (type==='skeleton'){ e.maxHp *= 1 + .2*L('skeleton'); e.dmg *= 1 + .1*L('skeleton'); }
+    else if (type==='necro') e.maxHp *= 1 + .1*L('necro');
+    else if (type==='frost'){ e.dmg *= 1 + .15*L('frost'); e.slowBonus = .02*L('frost'); }
+    else if (type==='wraith'){ e.maxHp *= 1 + .15*L('wraith'); e.dmg *= 1 + .15*L('wraith'); }
+    else if (type==='boss'){ e.maxHp *= 1 + .2*L('boss'); e.dmg *= 1 + .1*L('boss'); }
+    e.hp = e.maxHp;
+  }
   G.fx.push({ type:'spawn', x:e.x, y:e.y, t:0, dur:.5, side });
   return e;
 }
@@ -557,7 +685,7 @@ function attack(e, t){
   e.atkAt = G.t;
   if (e.ranged || e.struct){
     G.projs.push({ x:e.x, y:e.y - (e.struct ? (e.kind==='castle'?50:40) : 18), sx:e.x, sy:e.y, tgt:t, dmg:e.dmg, side:e.side, speed:e.struct?380:300, arrow:e.struct,
-      from:e.kind, slow: e.frostMage ? G.sides[e.side].frostSlow : 0 });
+      from:e.kind, slow: e.frostMage ? G.sides[e.side].frostSlow + (e.slowBonus||0) : 0 });
   } else {
     damage(t, e.dmg, e.side);
     if (e.drain) e.hp = Math.min(e.maxHp, e.hp + e.dmg*e.drain);
@@ -1130,7 +1258,7 @@ function updateHud(dt){
 }
 
 // ================= Экраны =================
-const SCREENS = ['scrTitle','scrRace','scrMap','scrPause','scrResult'];
+const SCREENS = ['scrTitle','scrRace','scrMap','scrPause','scrResult','scrBase','scrChest'];
 function show(id){ SCREENS.forEach(s=>$(s).hidden = s!==id); }
 function renderMap(){
   const cleared = save.cleared;
@@ -1171,7 +1299,16 @@ function endGame(winner, byTime){
   if (G.over) return;
   G.over = true; resultWinner = winner;
   hideCards(); setAim(null);
-  if (winner===0 && G.level > save.cleared){ save.cleared = G.level; persist(); }
+  if (winner===0 && G.level > save.cleared){ save.cleared = G.level; }
+  let reward = null;
+  if (winner===0){
+    const goldWin = 30 + G.level*5, chest = rollChest();
+    save.gold += goldWin;
+    let stored = save.chests.length < 4;
+    if (stored) save.chests.push(chest); else save.gold += 50;
+    reward = { goldWin, chest, stored };
+  }
+  persist();
   setTimeout(()=>{
     const t = $('resTitle');
     t.textContent = winner===0 ? 'Победа' : winner===1 ? 'Поражение' : 'Ничья';
@@ -1181,6 +1318,9 @@ function endGame(winner, byTime){
       : (winner===0 ? 'Вражеский замок разрушен.' : 'Твой замок пал.');
     if (winner===0 && G.stage===20) $('resSub').textContent += ' Туман над следующим островом рассеялся!';
     $('resStats').innerHTML = `<span>Призвано бойцов</span><span>${G.stats.made}</span><span>Убито врагов</span><span>${G.stats.kills}</span><span>Потеряно бойцов</span><span>${G.stats.lost}</span><span>Добыто золота</span><span>${Math.floor(G.sides[0].earned)}</span>`;
+    const rw = $('resReward');
+    rw.hidden = !reward;
+    if (reward) rw.innerHTML = `${chestHTML(reward.chest)}<div><div style="font-weight:700">${CHESTS[reward.chest].name}</div><div style="color:var(--gold)">+${reward.goldWin} золота${reward.stored?'':' · нет места для сундука, +50 золота'}</div></div>`;
     $('btnNext').hidden = winner!==0 || G.level>=2000;
     show('scrResult');
   }, 1200);
@@ -1188,8 +1328,74 @@ function endGame(winner, byTime){
 
 $('btnCampaign').addEventListener('click', ()=>show('scrRace'));
 $('btnRaceBack').addEventListener('click', ()=>show('scrTitle'));
-$('raceUndead').addEventListener('click', ()=>{ renderMap(); show('scrMap'); });
-$('btnMapBack').addEventListener('click', ()=>show('scrRace'));
+$('raceUndead').addEventListener('click', ()=>{ renderBase(); show('scrBase'); });
+$('btnMapBack').addEventListener('click', ()=>{ renderBase(); show('scrBase'); });
+$('btnBaseBack').addEventListener('click', ()=>show('scrRace'));
+$('btnToBattle').addEventListener('click', ()=>{ renderMap(); show('scrMap'); });
+$('btnToBase').addEventListener('click', ()=>{ G = null; renderBase(); show('scrBase'); });
+$('btnLootTake').addEventListener('click', ()=>{ renderBase(); show('scrBase'); });
+
+function chestHTML(t){ return `<div class="chest ${t}"><div class="box"></div><div class="lid"></div><div class="band"></div><div class="lock"></div></div>`; }
+const portraitCache = {};
+function heroPic(k, cls){
+  if (portraitCache[k]) return `<img src="${portraitCache[k]}" alt="">`;
+  return IC[(HEROES[k]||{}).ic || 'crypt'];
+}
+async function loadPortraits(){
+  if (!window.R3 || !R3.portrait) return;
+  let changed = false;
+  for (const k of [...Object.keys(HEROES), 'castle']){ if (!portraitCache[k]){ try { portraitCache[k] = await R3.portrait(k); changed = true; } catch(e){} } }
+  if (changed && !$('scrBase').hidden) renderBase(true);
+}
+function renderBase(noPortraits){
+  $('baseGold').textContent = save.gold;
+  $('cityProgress').textContent = `Пройдено этапов: ${save.cleared} · остров ${Math.min(100, Math.floor(save.cleared/20)+1)}`;
+  if (portraitCache.castle) $('cityImg').src = portraitCache.castle; else $('cityImg').removeAttribute('src');
+  let cs = '';
+  for (let i=0;i<4;i++){
+    const t = save.chests[i];
+    cs += t ? `<button class="cslot full" data-i="${i}" aria-label="Открыть: ${CHESTS[t].name}">${chestHTML(t)}<div class="cl">Открыть</div></button>` : `<div class="cslot">Пусто</div>`;
+  }
+  $('chestSlots').innerHTML = cs;
+  $('chestSlots').querySelectorAll('.cslot.full').forEach(b=>b.addEventListener('click', ()=>showChest(+b.dataset.i)));
+  let hs = '';
+  for (const k in HEROES){
+    const H = HEROES[k], h = save.heroes[k], c = UPCOST[h.lvl];
+    const need = c ? c.cards : h.cards, f = c ? Math.min(1, h.cards/c.cards) : 1;
+    let btn = '';
+    if (!c) btn = `<button class="upbtn" disabled>Макс. уровень</button>`;
+    else {
+      const ok = h.cards >= c.cards && save.gold >= c.gold;
+      const why = h.cards < c.cards ? `нужно ${c.cards} карт` : save.gold < c.gold ? `нужно ${c.gold} золота` : '';
+      btn = `<button class="upbtn" data-k="${k}" ${ok?'':'disabled'}>Улучшить · ${c.gold} золота${why?' ('+why+')':''}</button>`;
+    }
+    hs += `<div class="hero"><div class="pic">${heroPic(k)}</div><div class="info">
+      <div class="row1"><span class="nm">${H.name}</span><span class="rar ${H.rar}">${H.rar==='common'?'обычный':H.rar==='rare'?'редкий':'эпический'}</span><span class="lv">Ур. ${h.lvl}</span></div>
+      <div class="cbar"><i style="width:${f*100}%"></i><span>${c ? `${h.cards} / ${need} карт` : 'максимум'}</span></div>
+      <div class="eff">${h.lvl>1 ? H.eff(h.lvl) : 'Бонусов пока нет'}${c ? ` → ур. ${h.lvl+1}: ${H.eff(h.lvl+1)}` : ''}</div>
+      ${btn}</div></div>`;
+  }
+  $('heroList').innerHTML = hs;
+  $('heroList').querySelectorAll('.upbtn[data-k]').forEach(b=>b.addEventListener('click', ()=>{ if (upgradeHero(b.dataset.k)){ toast(`${HEROES[b.dataset.k].name}: уровень ${heroLvl(b.dataset.k)}!`, 2); renderBase(); } }));
+  if (!noPortraits) loadPortraits();
+}
+function showChest(i){
+  const t = save.chests[i]; if (!t) return;
+  save.chests.splice(i,1);
+  const loot = openChest(t);
+  $('chestTitle').textContent = CHESTS[t].name;
+  $('lootGrid').innerHTML = loot.map(it => {
+    const front = it.gold
+      ? `<div class="f goldc"><div class="coin" style="width:52px;height:52px"></div><div class="q" style="color:var(--gold)">+${it.gold}</div><div class="n">золото</div></div>`
+      : `<div class="f ${it.rar}">${portraitCache[it.hero] ? `<img src="${portraitCache[it.hero]}" alt="">` : `<span style="width:52px;height:52px;display:block">${IC[HEROES[it.hero].ic]}</span>`}<div class="q">×${it.qty}</div><div class="n">${HEROES[it.hero].name}</div></div>`;
+    return `<div class="lcard"><div class="in"><div class="b"></div>${front}</div></div>`;
+  }).join('');
+  $('btnLootTake').hidden = true;
+  show('scrChest');
+  const cards = [...$('lootGrid').querySelectorAll('.lcard')];
+  cards.forEach((c, k) => setTimeout(()=>c.classList.add('open'), 350 + k*320));
+  setTimeout(()=>{ $('btnLootTake').hidden = false; }, 350 + cards.length*320 + 200);
+}
 $('btnPause').addEventListener('click', ()=>{ if (G && !G.over){ G.paused = true; show('scrPause'); } });
 $('btnResume').addEventListener('click', ()=>{ G.paused = false; show(null); });
 $('btnSurrender').addEventListener('click', ()=>{ G.paused = false; show(null); endGame(1); });
@@ -1246,12 +1452,12 @@ window.addEventListener('error', e => { const l = document.getElementById('loadi
 setTimeout(() => { const l = document.getElementById('loading'); if (l && !window.R3 && !/Ошибка|не загрузилось/.test(l.textContent)) { l.style.color = '#e5554b'; l.textContent += ' — долго грузится. Проверьте интернет или обновите страницу.'; } }, 25000);
 </script>
 <script type="module">
-const BUILD = '14';
+const BUILD = '15';
 document.getElementById('ver').textContent = 'версия ' + BUILD;
 const { createRenderer } = await import('./render3d.js?v=' + BUILD);
 const ld = document.getElementById('loading');
 createRenderer(document.getElementById('gl'), f => { ld.textContent = `Загрузка 3D… ${Math.round(f*100)}%`; })
-  .then(r => { r.resize(cv.width, cv.height); window.R3 = r; ld.hidden = true; })
+  .then(r => { r.resize(cv.width, cv.height); window.R3 = r; ld.hidden = true; if (!document.getElementById('scrBase').hidden) loadPortraits(); })
   .catch(err => { console.warn('3D недоступно, работает 2D', err); ld.style.color = '#e5554b'; ld.textContent = '3D не загрузилось (' + (err && err.message || err) + '). Работает упрощённая 2D-версия.'; });
 window.addEventListener('error', e => { if (!window.R3) { ld.hidden = false; ld.style.color = '#e5554b'; ld.textContent = 'Ошибка: ' + e.message; } });
 </script>
