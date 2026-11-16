@@ -16,13 +16,14 @@ const CH = {
   skeleton:{ model:'warrior', h:1.45, r:'blade', l:'shield_small_a', walk:'Walking_D_Skeletons', idle:'Idle_Combat', atk:'1H_Melee_Attack_Chop', ring:.4 },
   necro:   { static:'u_scarecrow', h:1.8, ring:.45, hover:true },
   frost:   { static:'u_mantis', h:1.75, ring:.45, hover:true },
+  jester:  { anim:'u_jester', h:2.5, ring:.42, walk:'walk' },
   wraith:  { static:'u_wraith', h:1.7, ring:.42, hover:true, lift:.55, noOrb:true },
   boss:    { static:'u_werewolf', h:2.7, ring:.8, stomp:true, noOrb:true },
   goo:     { static:'u_goo_skeleton', h:1.45, ring:.38, stomp:true, noOrb:true },
   worker:  { model:'minion',  h:1.1,  r:'axe', walk:'Walking_A', idle:'Idle', atk:'1H_Melee_Attack_Chop', ring:.3 }
 };
 // Здания: модель и ширина в пикселях симуляции
-const BLD = { haunt:['church',52,[.45,.4,.6]], castle:['castle',104], tower:['tower_a',46], crypt:['barracks',62], frosttower:['tower_b',46], necrotower:['church',58], lair:['blacksmith',66], mine:['mine',62] };
+const BLD = { circus:['barracks',58,[1.05,.6,.85]], haunt:['church',52,[.45,.4,.6]], castle:['castle',104], tower:['tower_a',46], crypt:['barracks',62], frosttower:['tower_b',46], necrotower:['church',58], lair:['blacksmith',66], mine:['mine',62] };
 const COLOR = ['green','red'];
 
 export async function createRenderer(canvas, onProgress){
@@ -62,7 +63,7 @@ export async function createRenderer(canvas, onProgress){
   const files = [
     ...['warrior','mage','rogue','minion'].map(n=>'sk_'+n),
     ...['blade','shield_small_a','staff','axe','shield_large_a'].map(n=>'w_'+n),
-    'u_scarecrow', 'u_mantis', 'u_wraith', 'u_werewolf', 'u_goo_skeleton',
+    'u_scarecrow', 'u_mantis', 'u_wraith', 'u_werewolf', 'u_goo_skeleton', 'u_jester',
     ...COLOR.flatMap(c=>['castle','tower_a','church','tower_b','barracks','mine','blacksmith'].map(b=>`b_${b}_${c}`)),
     ...['rock_single_a','rock_single_c','rock_single_e'].map(n=>'n_'+n)
   ];
@@ -117,7 +118,7 @@ export async function createRenderer(canvas, onProgress){
   const views = new Set();
   function makeUnitView(e){
     const d = CH[e.worker ? 'worker' : (e.kind==='skeleton' && e.home && String(e.home).startsWith('raise')) ? 'goo' : e.kind];
-    if (d.static) return makeStaticView(e, d);
+    if (d.static || d.anim) return makeStaticView(e, d);
     const tpl = T['sk_'+d.model];
     const model = SkeletonUtils.clone(tpl.scene);
     const s = d.h / charH[d.model];
@@ -142,9 +143,21 @@ export async function createRenderer(canvas, onProgress){
   }
   // Модель без скелета: парит, наклоняется, делает выпад при атаке
   function makeStaticView(e, d){
-    const src = T[d.static].scene;
-    const model = src.clone(true);
-    const sz = size(src); model.scale.setScalar(d.h / sz.y);
+    const src = T[d.static || d.anim].scene;
+    let model, mixer = null, walkAct = null;
+    if (d.anim){
+      model = SkeletonUtils.clone(src);
+      model.traverse(o=>{ o.frustumCulled = false; });
+      // рост по костям (у Mixamo-моделей рамка сетки неточная)
+      if (!src.userData.boneH){ src.updateMatrixWorld(true); const bb = new THREE.Box3(); src.traverse(o=>{ if (o.isBone) bb.expandByPoint(o.getWorldPosition(new THREE.Vector3())); }); src.userData.boneH = (bb.max.y - Math.min(0, bb.min.y)) * 1.08; }
+      model.scale.setScalar(d.h / src.userData.boneH);
+      mixer = new THREE.AnimationMixer(model);
+      const clip = THREE.AnimationClip.findByName(T[d.anim].animations, d.walk) || T[d.anim].animations[0];
+      if (clip){ walkAct = mixer.clipAction(clip); walkAct.play(); }
+    } else {
+      model = src.clone(true);
+      const sz = size(src); model.scale.setScalar(d.h / sz.y);
+    }
     model.traverse(o=>{ if (o.isMesh){ o.material = tintMat(o.material, e.side, d.tint); o.castShadow = true; } });
     const body = new THREE.Group(); body.add(model);
     const g = new THREE.Group(); g.add(body);
@@ -153,7 +166,7 @@ export async function createRenderer(canvas, onProgress){
     const orb = new THREE.Mesh(new THREE.SphereGeometry(.09, 10, 8), new THREE.MeshBasicMaterial({ color: e.kind==='frost' ? 0x9fe3ff : SIDE[e.side].main }));
     orb.position.set(-d.h*.33, d.h*.95, .05); if (!d.noOrb) body.add(orb);
     g.position.set(wx(e.x), 0, wz(e.y)); scene.add(g);
-    const v = { kind:'unit', isStatic:true, e, g, body, orb, d, ice, lastAtk:e.atkAt, atkK:0, yaw: e.side===0 ? Math.PI : 0, px:e.x, py:e.y, born:performance.now()/1000, dieT:-1, ph:Math.random()*6, mixer:null };
+    const v = { kind:'unit', isStatic:true, animMixer:mixer, walkAct, e, g, body, orb, d, ice, lastAtk:e.atkAt, atkK:0, yaw: e.side===0 ? Math.PI : 0, px:e.x, py:e.y, born:performance.now()/1000, dieT:-1, ph:Math.random()*6, mixer:null };
     g.rotation.y = v.yaw; views.add(v); e.v = v; return v;
   }
   function updStaticView(v, dt, simDt, now){
@@ -181,7 +194,13 @@ export async function createRenderer(canvas, onProgress){
     v.atkK = Math.max(0, v.atkK - simDt*2.5);
     const lean = (e.moving ? .14 : 0) + v.atkK*.35;
     v.body.rotation.x += (lean - v.body.rotation.x) * Math.min(1, dt*8);
-    if (d.stomp){
+    if (v.animMixer){
+      // шут: настоящая анимация шага; стоит — замирает, бьёт — выпад
+      if (v.walkAct) v.walkAct.timeScale = frozen ? 0 : e.moving ? Math.max(.6, e.speed*(e.slowT>0?1-e.slow:1)/34) : .08;
+      v.animMixer.update(simDt);
+      v.body.position.y = 0;
+      v.body.rotation.z = 0;
+    } else if (d.stomp){
       const step = e.moving && !frozen ? Math.abs(Math.sin(v.ph*(e.kind==='boss'?4.5:7))) : 0;
       v.body.position.y = step * (e.kind==='boss' ? .12 : .1);
       v.body.rotation.z = e.moving ? .07*Math.sin(v.ph*(e.kind==='boss'?4.5:7)) : .02*Math.sin(v.ph*1.5);

@@ -292,6 +292,7 @@ const UNIT = {
   skeleton:{ name:'Скелет',        hp:70,  dmg:9,  cd:1.0, range:6,   speed:42, r:9,  aggro:110 },
   necro:   { name:'Некромант',     hp:60,  dmg:6,  cd:1.6, range:110, speed:32, r:9,  aggro:140, ranged:true, summon:{every:7,n:3,max:6} },
   frost:   { name:'Маг холода',    hp:45,  dmg:12, cd:1.5, range:120, speed:36, r:9,  aggro:145, ranged:true, frost:true },
+  jester:  { name:'Шут',           hp:85,  dmg:12, cd:.9,  range:8,   speed:44, r:9,  aggro:120 },
   wraith:  { name:'Призрак',       hp:55,  dmg:11, cd:1.0, range:8,   speed:63, r:9,  aggro:150, drain:.5 },
   boss:    { name:'Оборотень', hp:650, dmg:38, cd:1.4, range:8,   speed:30, r:17, aggro:120, splash:30 }
 };
@@ -299,6 +300,7 @@ const BUILD = {
   crypt:    { name:'Склеп',        unit:'skeleton', interval:5,  cap:3, maxCap:6 },
   frosttower:{ name:'Башня холода', unit:'frost',    interval:5,  cap:2, maxCap:4 },
   necrotower:{ name:'Башня некромантов', unit:'necro', interval:5, cap:1, maxCap:2 },
+  circus:   { name:'Балаган шутов', unit:'jester', interval:6, cap:2, maxCap:4 },
   haunt:    { name:'Обитель призраков', unit:'wraith', interval:6, cap:2, maxCap:4 },
   lair:     { name:'Логово',       unit:'boss',     interval:45, cap:1, maxCap:1 }
 };
@@ -310,7 +312,7 @@ const SPELLS = {
 // Позиции для игрока (низ). Враг — зеркально через центр.
 const GEO = {
   castle:{x:270,y:860}, towers:[{x:128,y:720},{x:412,y:720}], mine:{x:420,y:845}, door:{x:300,y:845},
-  slots:{ crypt:{x:118,y:862}, frosttower:{x:182,y:770}, lair:{x:356,y:772}, necrotower:{x:180,y:925}, haunt:{x:362,y:928} }
+  slots:{ crypt:{x:118,y:862}, frosttower:{x:182,y:770}, lair:{x:356,y:772}, necrotower:{x:180,y:925}, haunt:{x:362,y:928}, circus:{x:452,y:792} }
 };
 // Центральная дорога: по ней армии идут навстречу друг другу
 function laneX(y){ const t = clamp((y-90)/780,0,1), u = 1-t; return u*u*u*270 + 3*u*u*t*240 + 3*u*t*t*300 + t*t*t*270; }
@@ -352,6 +354,10 @@ const CARDS = {
              d:()=>'Некромант поднимает 3 скелетов каждые 7 с (до 6 живых). Некромантов не больше 1.', ok:S=>!S.buildings.necrotower, apply:S=>build(S,'necrotower') },
   necroUp: { t:'Ковен', tag:'Здание', cls:'t-build', ic:'mage', w:2,
              d:S=>`Лимит некромантов ${S.buildings.necrotower.cap}→${S.buildings.necrotower.cap+1}.`, ok:S=>S.buildings.necrotower&&S.buildings.necrotower.cap<BUILD.necrotower.maxCap, apply:S=>{S.buildings.necrotower.cap++;} },
+  circus:  { t:'Балаган шутов', tag:'Здание', cls:'t-build', ic:'summon', w:3,
+             d:()=>'Шут каждые 6 с. Ловкий боец ближнего боя. Не больше 2.', ok:S=>!S.buildings.circus, apply:S=>build(S,'circus') },
+  circusUp:{ t:'Большой балаган', tag:'Здание', cls:'t-build', ic:'summon', w:2,
+             d:S=>`Лимит шутов ${S.buildings.circus.cap}→${S.buildings.circus.cap+1}.`, ok:S=>S.buildings.circus&&S.buildings.circus.cap<BUILD.circus.maxCap, apply:S=>{S.buildings.circus.cap++;} },
   haunt:   { t:'Обитель призраков', tag:'Здание', cls:'t-build', ic:'summon', w:3,
              d:()=>'Летающий призрак каждые 6 с. Быстрый, лечится от урона. Не больше 2.', ok:S=>!S.buildings.haunt, apply:S=>build(S,'haunt') },
   hauntUp: { t:'Больше призраков', tag:'Здание', cls:'t-build', ic:'summon', w:2,
@@ -614,7 +620,9 @@ function rollCards(S){
   let pool = Object.keys(CARDS).filter(k=>CARDS[k].ok(S));
   const out = [];
   const hasBuilding = Object.keys(S.buildings).length > 0;
-  if (!hasBuilding){
+  // временно для показа анимации: игроку сразу предлагаем Балаган шутов
+  if (S.id === 0 && pool.includes('circus')){ out.push('circus'); pool = pool.filter(k=>k!=='circus'); }
+  if (!hasBuilding && out.length < 2){
     const b = pool.filter(k=>['crypt','frosttower','necrotower','haunt','lair'].includes(k));
     const pick = b[Math.floor(Math.random()*b.length)];
     out.push(pick); pool = pool.filter(k=>k!==pick);
@@ -636,7 +644,7 @@ function chooseCard(side, key){
 }
 function aiScore(S, k){
   const lvl = G.level;
-  const base = { crypt:10, necrotower:9, haunt:8, hauntUp:5, frosttower:8, worker: S.workerMax<5?8:3, lair:7, cryptUp:6, frostUp:5, necroUp:6, frostPow:4, haste:5, dmg:5, hp:5, lairUp:4,
+  const base = { crypt:10, necrotower:9, haunt:8, hauntUp:5, circus:6, circusUp:4, frosttower:8, worker: S.workerMax<5?8:3, lair:7, cryptUp:6, frostUp:5, necroUp:6, frostPow:4, haste:5, dmg:5, hp:5, lairUp:4,
                  fort: S.castle.hp/S.castle.maxHp < .7 ? 8 : 2 }[k] || 1;
   const noise = Math.max(1.5, 10 - lvl*0.25);
   return base + Math.random()*noise;
@@ -915,7 +923,7 @@ function bar(x,y,w,h,f,col){
   ctx.fillStyle = 'rgba(0,0,0,.65)'; ctx.fillRect(x-w/2-1,y-1,w+2,h+2);
   ctx.fillStyle = col; ctx.fillRect(x-w/2,y,w*clamp(f,0,1),h);
 }
-const HGT = { castle:4.4, tower:2.7, skeleton:1.65, necro:1.85, frost:1.8, wraith:2.5, boss:2.9, worker:1.35 };
+const HGT = { castle:4.4, tower:2.7, skeleton:1.65, necro:1.85, frost:1.8, jester:1.9, wraith:2.5, boss:2.9, worker:1.35 };
 function drawOverlay3D(){
   const P = (x,y,h)=>R3.toScreen(x,y,h);
   ctx.textAlign='center'; ctx.textBaseline='middle';
@@ -994,6 +1002,7 @@ function render(dt){
     else if (e.worker) drawWorker(e,col);
     else if (e.kind==='skeleton') drawSkeleton(e,col);
     else if (e.kind==='necro' || e.kind==='frost' || e.kind==='wraith') drawMage(e,col);
+    else if (e.kind==='jester') drawSkeleton(e,col);
     else if (e.kind==='boss') drawBoss(e,col);
     if (!e.struct && e.frozen > 0){ ctx.fillStyle='rgba(127,211,255,.35)'; ell(e.x, e.y-e.r, e.r+4, e.r+8); ctx.fill(); }
     if (!e.struct && !e.dead && e.hp < e.maxHp) bar(e.x, e.y - e.r*2 - 12, e.kind==='boss'?34:20, 3, e.hp/e.maxHp, col.main);
@@ -1465,7 +1474,7 @@ window.addEventListener('error', e => { const l = document.getElementById('loadi
 setTimeout(() => { const l = document.getElementById('loading'); if (l && !window.R3 && !/Ошибка|не загрузилось/.test(l.textContent)) { l.style.color = '#e5554b'; l.textContent += ' — долго грузится. Проверьте интернет или обновите страницу.'; } }, 25000);
 </script>
 <script type="module">
-const BUILD = '16';
+const BUILD = '17';
 document.getElementById('ver').textContent = 'версия ' + BUILD;
 const { createRenderer } = await import('./render3d.js?v=' + BUILD);
 const ld = document.getElementById('loading');
