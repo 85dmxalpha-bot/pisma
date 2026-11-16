@@ -207,9 +207,9 @@ const SIDE = [
 ];
 
 const UNIT = {
-  skeleton:{ name:'Скелет',        hp:70,  dmg:9,  cd:1.0, range:6,   speed:42, r:9,  aggro:150 },
-  mage:    { name:'Маг',           hp:45,  dmg:15, cd:1.6, range:120, speed:36, r:9,  aggro:165, ranged:true },
-  boss:    { name:'Рыцарь смерти', hp:650, dmg:38, cd:1.4, range:8,   speed:30, r:17, aggro:160, splash:30 }
+  skeleton:{ name:'Скелет',        hp:70,  dmg:9,  cd:1.0, range:6,   speed:42, r:9,  aggro:110 },
+  mage:    { name:'Маг',           hp:45,  dmg:15, cd:1.6, range:120, speed:36, r:9,  aggro:145, ranged:true },
+  boss:    { name:'Рыцарь смерти', hp:650, dmg:38, cd:1.4, range:8,   speed:30, r:17, aggro:120, splash:30 }
 };
 const BUILD = {
   crypt:    { name:'Склеп',        unit:'skeleton', interval:5,  cap:3, maxCap:6 },
@@ -226,6 +226,8 @@ const GEO = {
   castle:{x:270,y:860}, towers:[{x:128,y:720},{x:412,y:720}], mine:{x:420,y:845}, door:{x:300,y:845},
   slots:{ crypt:{x:96,y:852}, magetower:{x:182,y:770}, lair:{x:356,y:772} }
 };
+// Центральная дорога: по ней армии идут навстречу друг другу
+function laneX(y){ const t = clamp((y-90)/780,0,1), u = 1-t; return u*u*u*270 + 3*u*u*t*240 + 3*u*t*t*300 + t*t*t*270; }
 const geo = (side,p) => side===0 ? {x:p.x,y:p.y} : {x:WW-p.x, y:WH-p.y};
 
 const ISLE_NAMES = ['Костяной берег','Туманная топь','Пепельный риф','Чёрный утёс','Остров воронов','Гнилые мангры','Ледяной курган','Кровавая отмель','Зубы бездны','Мёртвый маяк'];
@@ -435,7 +437,7 @@ function workersAlive(side){ let n=0; for (const e of G.ents) if(!e.dead && e.si
 function spawnUnit(side, type, x, y, home){
   const d = UNIT[type], S = G.sides[side], m = S.mult;
   const e = addEnt({ side, kind:type, x:x+rand(-8,8), y:y+rand(-6,6), r:d.r, hp:d.hp*m*S.mods.hp, dmg:d.dmg*m*S.mods.dmg, cd:d.cd,
-    range:d.range, speed:d.speed, aggro:d.aggro, ranged:!!d.ranged, splash:d.splash||0, unit:true, home:home||null });
+    range:d.range, speed:d.speed, aggro:d.aggro, ranged:!!d.ranged, splash:d.splash||0, unit:true, home:home||null, laneOff:rand(-34,34) });
   if (side===0) G.stats.made++;
   G.fx.push({ type:'spawn', x:e.x, y:e.y, t:0, dur:.5, side });
   return e;
@@ -530,13 +532,17 @@ function attack(e, t){
   }
 }
 function findTarget(e){
-  let best = null, bd = e.aggro;
+  // 1) враг рядом — бьём его (рабочих только если совсем близко)
+  let best = null, bd = 1e9;
   for (const o of G.ents){
     if (o.dead || o.side===e.side || o.struct) continue;
     const d = dist(e,o) - o.r;
-    if (d < bd){ bd = d; best = o; }
+    if (d < (o.worker ? 45 : e.aggro) && d < bd){ bd = d; best = o; }
   }
   if (best) return best;
+  // 2) дошли до вражеских укреплений — бьём башни и замок; иначе идём по дороге
+  const deep = e.side===0 ? e.y < 330 : e.y > WH-330;
+  if (!deep) return null;
   bd = 1e9;
   for (const o of G.ents){
     if (o.dead || o.side===e.side || !o.struct) continue;
@@ -551,7 +557,17 @@ function updUnit(e, dt){
   if (e.frozen > 0){ e.frozen -= dt; e.moving = false; return; }
   e.cdT -= dt; e.retarget -= dt;
   if (!e.tgt || e.tgt.dead || e.retarget <= 0){ e.tgt = findTarget(e); e.retarget = .4; }
-  const t = e.tgt; if (!t){ e.moving = false; return; }
+  const t = e.tgt;
+  if (!t){
+    // марш по дороге к вражескому замку
+    const dir = e.side===0 ? -1 : 1;
+    const tx = laneX(e.y) + e.laneOff, ty = e.y + dir*60;
+    const mx = tx-e.x, my = ty-e.y, md = Math.hypot(mx,my) || 1;
+    e.moving = true; e.anim += dt;
+    e.x += mx/md*e.speed*dt; e.y += my/md*e.speed*dt;
+    if (Math.abs(mx) > 2) e.face = mx < 0 ? -1 : 1;
+    return;
+  }
   const dx = t.x-e.x, dy = t.y-e.y, d = Math.hypot(dx,dy) || 1;
   if (d - e.r - t.r <= e.range){
     e.moving = false;
