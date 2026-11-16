@@ -944,9 +944,22 @@ function drawOverlay3D(){
     ctx.textAlign = 'right'; ctx.fillText(Math.ceil(c.hp), 410, 19.5);
     ctx.textAlign = 'center';
   }
+  // счётчик бойцов на поле: свои против врага
+  {
+    let n0 = 0, n1 = 0;
+    for (const e of G.ents) if (!e.dead && e.unit){ if (e.side===0) n0++; else n1++; }
+    const tot = Math.max(1, n0 + n1), f0 = n0/tot;
+    ctx.fillStyle = 'rgba(10,12,16,.82)'; roundRect(170, 36, 200, 30, 15); ctx.fill();
+    ctx.font = '800 20px "Cinzel", Georgia, serif'; ctx.textAlign = 'center';
+    ctx.fillStyle = '#8be36b'; ctx.fillText(n0, 212, 52);
+    ctx.fillStyle = '#ece5d3'; ctx.font = '700 12px "Alegreya Sans", sans-serif'; ctx.fillText('VS', 270, 52);
+    ctx.font = '800 20px "Cinzel", Georgia, serif'; ctx.fillStyle = '#e5554b'; ctx.fillText(n1, 328, 52);
+    ctx.fillStyle = '#e5554b'; ctx.fillRect(180, 61, 180, 3);
+    ctx.fillStyle = '#8be36b'; ctx.fillRect(180, 61, 180*f0, 3);
+  }
   G.sides.forEach(S=>{
     const c = S.castle; if (c.dead) return;
-    const p = P(c.x, c.y, HGT.castle), y = S.id===1 ? Math.max(48, p.y - 22) : p.y - 22;
+    const p = P(c.x, c.y, HGT.castle), y = S.id===1 ? Math.max(84, p.y - 22) : p.y - 22;
     const n = workersAlive(S.id);
     ctx.fillStyle='rgba(10,12,16,.8)'; roundRect(p.x-38, y-10, 76, 20, 10); ctx.fill();
     ctx.fillStyle='#f2c14e'; ctx.font='700 13px "Alegreya Sans", sans-serif';
@@ -1452,7 +1465,7 @@ window.addEventListener('error', e => { const l = document.getElementById('loadi
 setTimeout(() => { const l = document.getElementById('loading'); if (l && !window.R3 && !/Ошибка|не загрузилось/.test(l.textContent)) { l.style.color = '#e5554b'; l.textContent += ' — долго грузится. Проверьте интернет или обновите страницу.'; } }, 25000);
 </script>
 <script type="module">
-const BUILD = '15';
+const BUILD = '16';
 document.getElementById('ver').textContent = 'версия ' + BUILD;
 const { createRenderer } = await import('./render3d.js?v=' + BUILD);
 const ld = document.getElementById('loading');
