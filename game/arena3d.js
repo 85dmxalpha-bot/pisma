@@ -186,6 +186,7 @@ export function buildArena(scene, K, envTex){
   const sand = new THREE.MeshStandardMaterial({ color:0xb59a72, roughness:.85, flatShading:true });
   const sand2 = new THREE.MeshStandardMaterial({ color:0x9c8160, roughness:.85, flatShading:true });
   const edgeX = (FIELD.x1 - 270) * K;   // половина ширины полотна
+  const DRAGON_Z = { '-1':[5.5,-6], '1':[11.5,-1] };
   const rock = (x, y, z, sx, sy, sz, mat) => {
     const m = new THREE.Mesh(rockGeos[Math.floor(R()*rockGeos.length)], mat);
     m.position.set(x, y, z); m.scale.set(sx, sy, sz); m.rotation.y = R()*6.28;
@@ -196,6 +197,8 @@ export function buildArena(scene, K, envTex){
       const undead = z + (R()-.5)*3 > 2;
       const m1 = undead ? (R()<.5?basalt:basalt2) : (R()<.5?sand:sand2);
       const h = 2.2 + R()*3.2 + (Math.abs(z) > 14 ? 2 : 0);
+      const ledge = (DRAGON_Z[side]||[]).some(dz => Math.abs(z - dz) < 2.3);
+      if (ledge){ rock(side*(edgeX + 1.6), -.2, z, 1.3+R()*.4, .55, 1.3, m1); continue; }
       rock(side*(edgeX + .8 + R()*.6), h*.35, z, 1.1+R()*.7, h, 1.1+R()*.6, m1);
       rock(side*(edgeX + 2.6 + R()*1.2), h*.6, z + R()*.6, 1.6+R()*.8, h*1.5, 1.4+R()*.8, m1);
       if (R() < .5) rock(side*(edgeX + .2), .1, z + R(), .5+R()*.4, .5+R()*.3, .5+R()*.4, m1);
@@ -265,7 +268,7 @@ export function buildArena(scene, K, envTex){
       else { const sp = new THREE.Mesh(new THREE.ConeGeometry(.12, .5, 4), hornM); sp.position.set(0, .45 - k*.1, -1.1 - k*.75); sp.rotation.x = -.5; neck.add(sp); } }
     const grp = new THREE.Group(); grp.add(neck); grp.add(head);
     grp.traverse(o=>{ if (o.isMesh){ o.castShadow = true; } });
-    return { grp, head, jawPivot, eyeM };
+    return { grp, head, jawPivot, eyeM, mouth:new THREE.Vector3(0, -.2, 2.3) };
   }
   const puffTex = (()=>{ const cc = document.createElement('canvas'); cc.width = cc.height = 64; const k = cc.getContext('2d'); const rg = k.createRadialGradient(32,32,0,32,32,32); rg.addColorStop(0,'rgba(255,255,255,1)'); rg.addColorStop(.4,'rgba(255,255,255,.5)'); rg.addColorStop(1,'rgba(255,255,255,0)'); k.fillStyle = rg; k.fillRect(0,0,64,64); return new THREE.CanvasTexture(cc); })();
   const breath = [];
@@ -275,16 +278,41 @@ export function buildArena(scene, K, envTex){
     { style:'stone', x:-(edgeX+1.5), y:3.0, z:-6,   dir:[1,.5],  s:1.4, fire:0xffb347 },
     { style:'stone', x:(edgeX+1.5),  y:2.9, z:-1,   dir:[-1,.6], s:1.35, fire:0x7fe7ff }
   ];
+  // Модель дракона (OBJ) → тот же интерфейс, что у самодельной головы
+  function objDragonMaker(obj){
+    const base = obj.clone(true);
+    const box = new THREE.Box3().setFromObject(base), sz = box.getSize(new THREE.Vector3()), c = box.getCenter(new THREE.Vector3());
+    const n = 1 / sz.z;                       // длина дракона = 1
+    base.position.set(-c.x*n, -box.min.y*n, -c.z*n); base.scale.setScalar(n);
+    let tip = new THREE.Vector3(0,0,-1e9);
+    base.traverse(o=>{ if (o.isMesh){ const p = o.geometry.attributes.position; for (let i=0;i<p.count;i++){ if (p.getZ(i) > tip.z) tip.set(p.getX(i), p.getY(i), p.getZ(i)); } } });
+    tip.set((tip.x - c.x)*n, (tip.y - box.min.y)*n, (tip.z - c.z)*n);
+    return style => {
+      const bone = style === 'bone';
+      const mat = new THREE.MeshStandardMaterial({ color: bone ? 0xd9d0bb : 0x4e5866, roughness: bone ? .65 : .32, metalness: bone ? 0 : .7,
+        emissive: bone ? 0x0b2a0b : 0x2a1c05, flatShading:true, envMap: envTex, envMapIntensity: bone ? .3 : 1.1 });
+      const model = base.clone(true);
+      model.traverse(o=>{ if (o.isMesh){ o.material = mat; o.castShadow = true; o.receiveShadow = true; } });
+      const head = new THREE.Group(); head.add(model);
+      const eyeM = new THREE.MeshBasicMaterial({ color: bone ? 0x8be36b : 0xffc83d });
+      for (const sx of [-1,1]){ const e = new THREE.Mesh(new THREE.SphereGeometry(.018, 8, 6), eyeM); e.position.set(tip.x + sx*.035, tip.y + .045, tip.z - .1); head.add(e); }
+      const grp = new THREE.Group(); grp.add(head);
+      return { grp, head, jawPivot:new THREE.Object3D(), eyeM, mouth: tip.clone().add(new THREE.Vector3(0, -.01, .02)), full:true };
+    };
+  }
+  function spawnDragons(make){
   dragons.forEach((d, i)=>{
-    const D = makeDragon(d.style);
-    D.grp.position.set(d.x, d.y, d.z); D.grp.scale.setScalar(d.s);
-    const yaw = Math.atan2(d.dir[0], d.dir[1]);
+    const D = make(d.style);
+    D.grp.position.set(D.full ? Math.sign(d.x)*(edgeX + .15) : d.x, D.full ? .05 : d.y, d.z); D.grp.scale.setScalar(D.full ? d.s*3.1 : d.s);
+    const yaw = D.full ? Math.atan2(d.dir[0]*.8, 1) : Math.atan2(d.dir[0], d.dir[1]);
     D.grp.rotation.y = yaw; scene.add(D.grp);
     let next = 3 + i*2.3 + R()*3, fireT = -1;
     const fireMat = new THREE.SpriteMaterial({ map:puffTex, color:d.fire, transparent:true, blending:THREE.AdditiveBlending, depthWrite:false });
     updaters.push((t, dt) => {
-      D.head.rotation.y = .18*Math.sin(t*.6 + i);
-      D.head.rotation.x = .08*Math.sin(t*.9 + i*2) - (fireT >= 0 ? .15 : 0);
+      D.head.rotation.y = (D.full ? .08 : .18)*Math.sin(t*.6 + i);
+      const bow = fireT >= 0 ? (D.full ? .12 : .15) : 0;
+      D.head.rotation.x += ((D.full ? .03 : .08)*Math.sin(t*.9 + i*2) + bow - D.head.rotation.x*(D.full?0:0) - D.head.rotation.x) * Math.min(1, dt*4);
+      if (D.full){ const br = 1 + .025*Math.sin(t*1.8 + i); D.head.scale.set(1, br, 1 + (br-1)*.5); }
       const open = fireT >= 0 ? .55 : .08 + .06*Math.sin(t*1.3+i);
       D.jawPivot.rotation.x += (open - D.jawPivot.rotation.x) * Math.min(1, dt*6);
       D.eyeM.color.setHSL(new THREE.Color(d.style==='bone'?0x8be36b:0xffc83d).getHSL({}).h, 1, .55 + .15*Math.sin(t*3+i));
@@ -294,7 +322,7 @@ export function buildArena(scene, K, envTex){
         if (fireT < 1.1){
           for (let k=0;k<2;k++){
             const sp = new THREE.Sprite(fireMat.clone());
-            const mouth = new THREE.Vector3(0, -.2, 2.3).applyMatrix4(D.head.matrixWorld);
+            const mouth = D.mouth.clone().applyMatrix4(D.head.matrixWorld);
             sp.position.copy(mouth); sp.scale.setScalar(.4);
             const fw = new THREE.Vector3(Math.sin(yaw), -.25, Math.cos(yaw)).normalize();
             breath.push({ sp, v: fw.multiplyScalar(4 + Math.random()*2).add(new THREE.Vector3((Math.random()-.5),(Math.random()-.2),(Math.random()-.5))), life:0 });
@@ -304,6 +332,7 @@ export function buildArena(scene, K, envTex){
       }
     });
   });
+  }
   updaters.push((t, dt) => {
     for (let i = breath.length-1; i >= 0; i--){
       const b = breath[i]; b.life += dt;
@@ -475,7 +504,8 @@ export function buildArena(scene, K, envTex){
     if (geo.index) out.setIndex(Array.from(geo.index.array));
     return out;
   };
-  function addModels(T){
+  function addModels(T, dragonObj){
+    spawnDragons(dragonObj ? objDragonMaker(dragonObj) : makeDragon);
     const src = T['sk_minion']?.scene; if (!src) return;
     const parts = [];
     let mat = null, eyeGeo = null;

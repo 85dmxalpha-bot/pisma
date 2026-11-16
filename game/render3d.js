@@ -2,6 +2,7 @@
 // Симуляция остаётся в index.html (координаты в пикселях 540x960); здесь только картинка.
 import * as THREE from 'three';
 import { GLTFLoader } from './lib/jsm/loaders/GLTFLoader.js';
+import { OBJLoader } from './lib/jsm/loaders/OBJLoader.js';
 import * as SkeletonUtils from './lib/jsm/utils/SkeletonUtils.js';
 import { buildArena } from './arena3d.js';
 import { RoomEnvironment } from './lib/jsm/environments/RoomEnvironment.js';
@@ -14,7 +15,7 @@ const wz = y => (y - 480) * K;
 const CH = {
   skeleton:{ model:'warrior', h:1.45, r:'blade', l:'shield_small_a', walk:'Walking_D_Skeletons', idle:'Idle_Combat', atk:'1H_Melee_Attack_Chop', ring:.4 },
   necro:   { model:'mage',    h:1.6,  r:'staff', walk:'Walking_A', idle:'Idle', atk:'Spellcast_Shoot', cast:'Spellcast_Summon', ring:.42 },
-  frost:   { model:'rogue',   h:1.55, r:'staff', walk:'Walking_A', idle:'Idle', atk:'Spellcast_Shoot', ring:.42, tint:[.75,.9,1.15] },
+  frost:   { static:'u_scarecrow', h:1.75, ring:.45, hover:true, tint:[.85,.95,1.12] },
   boss:    { model:'warrior', h:2.6,  r:'axe', l:'shield_large_a', walk:'Walking_D_Skeletons', idle:'Idle_Combat', atk:'2H_Melee_Attack_Chop', ring:.72 },
   worker:  { model:'minion',  h:1.1,  r:'axe', walk:'Walking_A', idle:'Idle', atk:'1H_Melee_Attack_Chop', ring:.3 }
 };
@@ -55,6 +56,7 @@ export async function createRenderer(canvas, onProgress){
   const files = [
     ...['warrior','mage','rogue','minion'].map(n=>'sk_'+n),
     ...['blade','shield_small_a','staff','axe','shield_large_a'].map(n=>'w_'+n),
+    'u_scarecrow',
     ...COLOR.flatMap(c=>['castle','tower_a','church','tower_b','barracks','mine','blacksmith'].map(b=>`b_${b}_${c}`)),
     ...['rock_single_a','rock_single_c','rock_single_e'].map(n=>'n_'+n)
   ];
@@ -63,7 +65,8 @@ export async function createRenderer(canvas, onProgress){
     g.scene.traverse(o=>{ if (o.isMesh){ o.castShadow = true; o.receiveShadow = true; } });
     T[f] = g; done++; onProgress && onProgress(done/files.length);
   })));
-  arena.addModels(T);
+  const dragonObj = await new OBJLoader().loadAsync(`./assets/dragon.obj${window.OBJ_EXT || ''}`).catch(()=>null);
+  arena.addModels(T, dragonObj);
   const size = obj => new THREE.Box3().setFromObject(obj).getSize(new THREE.Vector3());
   const charH = {}; for (const n of ['warrior','mage','rogue','minion']) charH[n] = 2.45; // рост модели в позе
   const place = (name, px, x, y, rot) => {
@@ -100,6 +103,7 @@ export async function createRenderer(canvas, onProgress){
   const views = new Set();
   function makeUnitView(e){
     const d = CH[e.worker ? 'worker' : e.kind];
+    if (d.static) return makeStaticView(e, d);
     const tpl = T['sk_'+d.model];
     const model = SkeletonUtils.clone(tpl.scene);
     const s = d.h / charH[d.model];
@@ -122,6 +126,50 @@ export async function createRenderer(canvas, onProgress){
     play(v, d.idle);
     return v;
   }
+  // Модель без скелета: парит, наклоняется, делает выпад при атаке
+  function makeStaticView(e, d){
+    const src = T[d.static].scene;
+    const model = src.clone(true);
+    const sz = size(src); model.scale.setScalar(d.h / sz.y);
+    model.traverse(o=>{ if (o.isMesh){ o.material = tintMat(o.material, e.side, d.tint); o.castShadow = true; } });
+    const body = new THREE.Group(); body.add(model);
+    const g = new THREE.Group(); g.add(body);
+    const ring = new THREE.Mesh(ringGeo, ringMats[e.side]); ring.rotation.x = -Math.PI/2; ring.position.y = .03; ring.scale.setScalar(d.ring); g.add(ring);
+    const ice = new THREE.Mesh(iceGeo, iceMat); ice.scale.set(d.ring*1.4, d.h*.95, d.ring*1.4); ice.position.y = d.h*.5; ice.visible = false; g.add(ice);
+    const orb = new THREE.Mesh(new THREE.SphereGeometry(.09, 10, 8), new THREE.MeshBasicMaterial({ color: e.kind==='frost' ? 0x9fe3ff : SIDE[e.side].main }));
+    orb.position.set(-d.h*.33, d.h*.95, .05); body.add(orb);
+    g.position.set(wx(e.x), 0, wz(e.y)); scene.add(g);
+    const v = { kind:'unit', isStatic:true, e, g, body, orb, d, ice, lastAtk:e.atkAt, atkK:0, yaw: e.side===0 ? Math.PI : 0, px:e.x, py:e.y, born:performance.now()/1000, dieT:-1, ph:Math.random()*6, mixer:null };
+    g.rotation.y = v.yaw; views.add(v); e.v = v; return v;
+  }
+  function updStaticView(v, dt, simDt, now){
+    const e = v.e, d = v.d;
+    if (e.dead){
+      if (v.dieT < 0){ v.dieT = 0; v.ice.visible = false; }
+      v.dieT += simDt;
+      v.body.rotation.x = Math.max(-1.45, v.body.rotation.x - simDt*3);
+      v.body.position.y = Math.max(0, v.body.position.y - simDt);
+      if (v.dieT > 1.4) v.g.position.y -= simDt*.7;
+      if (v.dieT > 2.6) removeView(v);
+      return;
+    }
+    const dx = e.x - v.px, dy = e.y - v.py; v.px = e.x; v.py = e.y;
+    let want = null;
+    if (Math.hypot(dx,dy) > .05) want = Math.atan2(dx, dy);
+    else if (e.tgt && !e.tgt.dead) want = Math.atan2(e.tgt.x-e.x, e.tgt.y-e.y);
+    if (want !== null){ let diff = want - v.yaw; diff = Math.atan2(Math.sin(diff), Math.cos(diff)); v.yaw += diff * Math.min(1, dt*8); }
+    const age = now - v.born, rise = age < .45 ? -d.h*(1 - age/.45) : 0;
+    v.g.position.set(wx(e.x), rise, wz(e.y)); v.g.rotation.y = v.yaw;
+    const frozen = e.frozen > 0; v.ice.visible = frozen;
+    if (!frozen) v.ph += simDt;
+    if (e.atkAt !== v.lastAtk){ v.lastAtk = e.atkAt; v.atkK = 1; }
+    v.atkK = Math.max(0, v.atkK - simDt*2.5);
+    const lean = (e.moving ? .14 : 0) + v.atkK*.35;
+    v.body.rotation.x += (lean - v.body.rotation.x) * Math.min(1, dt*8);
+    v.body.rotation.z = .05*Math.sin(v.ph*1.7);
+    v.body.position.y = .18 + .08*Math.sin(v.ph*3);
+    v.orb.scale.setScalar(1 + v.atkK*1.6 + .15*Math.sin(v.ph*6));
+  }
   function play(v, name, once, speed){
     const clip = THREE.AnimationClip.findByName(v.clips, name); if (!clip) return 0;
     const act = v.mixer.clipAction(clip);
@@ -136,6 +184,7 @@ export async function createRenderer(canvas, onProgress){
     return clip.duration / (speed||1);
   }
   function updUnitView(v, dt, simDt, now){
+    if (v.isStatic) return updStaticView(v, dt, simDt, now);
     const e = v.e;
     if (e.dead){
       if (v.dieT < 0){ v.dieT = 0; v.ice.visible = false; play(v, 'Death_A', true); }
